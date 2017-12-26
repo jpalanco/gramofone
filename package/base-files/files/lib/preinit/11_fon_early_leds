@@ -1,0 +1,15 @@
+#!/bin/sh 
+# Copyright (C) 2006 OpenWrt.org
+# Copyright (C) 2010 Vertical Communications
+
+fon_early_leds() {
+    insmod leds-gpio
+    insmod ledtrig-timer
+    echo none > /sys/class/leds/fon2415\:green\:status/trigger
+    echo 255 > /sys/class/leds/fon2415\:green\:status/brightness
+    echo none > /sys/class/leds/fon2415\:red\:status/trigger
+    echo 255 > /sys/class/leds/fon2415\:red\:status/brightness
+}
+
+boot_hook_add preinit_essential fon_early_leds
+

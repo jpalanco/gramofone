@@ -1,0 +1,92 @@
+diff --git a/arch/mips/ath79/Kconfig b/arch/mips/ath79/Kconfig
+index e574bc8..18e92d0 100644
+--- a/arch/mips/ath79/Kconfig
++++ b/arch/mips/ath79/Kconfig
+@@ -197,6 +197,21 @@ config ATH79_MACH_DB120_TB388
+ 	  Say 'Y' here if you want your kernel to support the
+ 	  Atheros DB120 reference board with TB388 extension.
+ 
++config ATH79_MACH_DB120_AK4430
++	bool "Atheros DB120 reference board with AK4430 extension"
++	select SOC_AR934X
++	select ATH79_DEV_AP9X_PCI if PCI
++	select ATH79_DEV_AUDIO
++	select ATH79_DEV_ETH
++	select ATH79_DEV_GPIO_BUTTONS
++	select ATH79_DEV_LEDS_GPIO
++	select ATH79_DEV_M25P80
++	select ATH79_DEV_USB
++	select ATH79_DEV_WMAC
++	help
++	  Say 'Y' here if you want your kernel to support the
++	  Atheros DB120 reference board with AK4430 extension.
++
+ config ATH79_MACH_PB42
+ 	bool "Atheros PB42 board support"
+ 	select SOC_AR71XX
+diff --git a/arch/mips/ath79/Makefile b/arch/mips/ath79/Makefile
+index 1545a1b..b54016d 100644
+--- a/arch/mips/ath79/Makefile
++++ b/arch/mips/ath79/Makefile
+@@ -61,6 +61,7 @@ obj-$(CONFIG_ATH79_MACH_CAP4200AG)	+= mach-cap4200ag.o
+ obj-$(CONFIG_ATH79_MACH_CUS227)		+= mach-cus227.o
+ obj-$(CONFIG_ATH79_MACH_DB120)		+= mach-db120.o
+ obj-$(CONFIG_ATH79_MACH_DB120_TB388)	+= mach-db120-tb388.o
++obj-$(CONFIG_ATH79_MACH_DB120_AK4430)	+= mach-db120-ak4430.o
+ obj-$(CONFIG_ATH79_MACH_DIR_600_A1)	+= mach-dir-600-a1.o
+ obj-$(CONFIG_ATH79_MACH_DIR_615_C1)	+= mach-dir-615-c1.o
+ obj-$(CONFIG_ATH79_MACH_DIR_825_B1)	+= mach-dir-825-b1.o
+diff --git a/arch/mips/ath79/machtypes.h b/arch/mips/ath79/machtypes.h
+index e6c4717..78bfc92 100644
+--- a/arch/mips/ath79/machtypes.h
++++ b/arch/mips/ath79/machtypes.h
+@@ -37,6 +37,7 @@ enum ath79_mach_type {
+ 	ATH79_MACH_CUS227,		/* Qualcomm Atheros CUS227 board */
+ 	ATH79_MACH_DB120,		/* Atheros DB120 reference board */
+ 	ATH79_MACH_DB120_TB388,		/* Atheros DB120/TB388 ref board */
++	ATH79_MACH_DB120_AK4430,	/* Atheros DB120/AK4430 ref board */
+ 	ATH79_MACH_PB44,		/* Atheros PB44 reference board */
+ 	ATH79_MACH_DIR_600_A1,		/* D-Link DIR-600 rev. A1 */
+ 	ATH79_MACH_DIR_615_C1,		/* D-Link DIR-615 rev. C1 */
+diff --git a/sound/soc/codecs/Kconfig b/sound/soc/codecs/Kconfig
+index 7c205e7..8f13d4b 100644
+--- a/sound/soc/codecs/Kconfig
++++ b/sound/soc/codecs/Kconfig
+@@ -21,6 +21,7 @@ config SND_SOC_ALL_CODECS
+ 	select SND_SOC_ADAV80X
+ 	select SND_SOC_ADS117X
+ 	select SND_SOC_AK4104 if SPI_MASTER
++	select SND_SOC_AK4430
+ 	select SND_SOC_AK4535 if I2C
+ 	select SND_SOC_AK4641 if I2C
+ 	select SND_SOC_AK4642 if I2C
+@@ -156,6 +157,9 @@ config SND_SOC_ADS117X
+ config SND_SOC_AK4104
+ 	tristate
+ 
++config SND_SOC_AK4430
++	tristate
++
+ config SND_SOC_AK4535
+ 	tristate
+ 
+diff --git a/sound/soc/codecs/Makefile b/sound/soc/codecs/Makefile
+index de80781..6584ec2 100644
+--- a/sound/soc/codecs/Makefile
++++ b/sound/soc/codecs/Makefile
+@@ -9,6 +9,7 @@ snd-soc-adau1373-objs := adau1373.o
+ snd-soc-adav80x-objs := adav80x.o
+ snd-soc-ads117x-objs := ads117x.o
+ snd-soc-ak4104-objs := ak4104.o
++snd-soc-ak4430-objs := ak4430.o
+ snd-soc-ak4535-objs := ak4535.o
+ snd-soc-ak4641-objs := ak4641.o
+ snd-soc-ak4642-objs := ak4642.o
+@@ -111,6 +112,7 @@ obj-$(CONFIG_SND_SOC_ADAU1701)  += snd-soc-adau1701.o
+ obj-$(CONFIG_SND_SOC_ADAV80X)  += snd-soc-adav80x.o
+ obj-$(CONFIG_SND_SOC_ADS117X)	+= snd-soc-ads117x.o
+ obj-$(CONFIG_SND_SOC_AK4104)	+= snd-soc-ak4104.o
++obj-$(CONFIG_SND_SOC_AK4430)	+= snd-soc-ak4430.o
+ obj-$(CONFIG_SND_SOC_AK4535)	+= snd-soc-ak4535.o
+ obj-$(CONFIG_SND_SOC_AK4641)	+= snd-soc-ak4641.o
+ obj-$(CONFIG_SND_SOC_AK4642)	+= snd-soc-ak4642.o

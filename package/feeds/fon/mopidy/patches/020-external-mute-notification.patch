@@ -1,0 +1,15 @@
+--- a/mopidy/core/playback.py	2014-03-07 16:15:13.000000000 +0100
++++ b/mopidy/core/playback.py	2014-03-10 16:17:02.334855907 +0100
+@@ -129,6 +129,11 @@
+ 
+     ### Methods
+ 
++    def on_external_mute(self, mute):
++        if str(mute).lower() == "false":
++            mute = False
++        self._trigger_mute_changed(mute)
++
+     def change_track(self, tl_track, on_error_step=1):
+         """
+         Change to the given track, keeping the current playback state.
+

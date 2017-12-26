@@ -1,0 +1,19 @@
+Index: mopidy-0.14.2/mopidy/utils/path.py
+===================================================================
+--- mopidy-0.14.2.orig/mopidy/utils/path.py	2013-07-01 11:50:29.000000000 +0200
++++ mopidy-0.14.2/mopidy/utils/path.py	2013-07-17 19:07:23.117427563 +0200
+@@ -16,10 +16,10 @@
+ 
+ 
+ XDG_DIRS = {
+-    'XDG_CACHE_DIR': glib.get_user_cache_dir(),
+-    'XDG_CONFIG_DIR': glib.get_user_config_dir(),
+-    'XDG_DATA_DIR': glib.get_user_data_dir(),
+-    'XDG_MUSIC_DIR': glib.get_user_special_dir(glib.USER_DIRECTORY_MUSIC),
++    'XDG_CACHE_DIR': b'/root/.cache',
++    'XDG_CONFIG_DIR': b'/root/.config',
++    'XDG_DATA_DIR': b'/root/.local/share',
++    'XDG_MUSIC_DIR': b'/root/music',
+ }
+ 
+ # XDG_MUSIC_DIR can be none, so filter out any bad data.

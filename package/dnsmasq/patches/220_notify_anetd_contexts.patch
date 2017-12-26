@@ -1,0 +1,69 @@
+--- a/src/dnsmasq.c
++++ b/src/dnsmasq.c
+@@ -18,6 +18,8 @@
+ #define DNSMASQ_COMPILE_OPTS
+ 
+ #include "dnsmasq.h"
++#include <libubox/blobmsg_json.h>
++#include "libubus.h"
+ 
+ struct daemon *daemon;
+ 
+@@ -31,6 +33,8 @@ static void async_event(int pipe, time_t
+ static void fatal_event(struct event_desc *ev, char *msg);
+ static int read_event(int fd, struct event_desc *evp, char **msg);
+ 
++static struct blob_buf b;
++
+ int main (int argc, char **argv)
+ {
+   int bind_fallback = 0;
+@@ -52,6 +56,8 @@ int main (int argc, char **argv)
+   cap_user_data_t data = NULL;
+ #endif 
+   struct dhcp_context *context;
++  struct ubus_context *ubus_ctx;
++  char dhcp_ifaces[64] = {0};
+ 
+ #ifdef LOCALEDIR
+   setlocale(LC_ALL, "");
+@@ -638,8 +644,38 @@ int main (int argc, char **argv)
+   
+ 
+ #ifdef HAVE_DHCP
+-  for (context = daemon->dhcp; context; context = context->next)
++  for (context = daemon->dhcp; context; context = context->next) {
+     log_context(AF_INET, context);
++    if (context->netid.net) {
++      if (!dhcp_ifaces[0]) {
++        snprintf(dhcp_ifaces, sizeof(dhcp_ifaces), "%s", context->netid.net);
++      } else {
++        snprintf(dhcp_ifaces, sizeof(dhcp_ifaces), "%s,%s", dhcp_ifaces,
++            context->netid.net);
++      }
++    }
++  }
++
++  /* Notifying anetd of registered dhcp contexts */
++  uint32_t anetid;
++
++  ubus_ctx = ubus_connect(NULL);
++  if (ubus_ctx) {
++    if (ubus_lookup_id(ubus_ctx, "anet", &anetid)) {
++      my_syslog(MS_DHCP | LOG_ERR, _("anet ubus object not found"));
++    } else {
++      blob_buf_init(&b, 0);
++      blobmsg_add_string(&b, "ifaces", dhcp_ifaces);
++      my_syslog(MS_DHCP | LOG_INFO, _("notifying anetd of registered dhcp"
++          " contexts %s"), dhcp_ifaces);
++      ubus_invoke(ubus_ctx, anetid, "check_dnsmasq_contexts", b.head, NULL,
++          0, 1);
++      blob_buf_free(&b);
++    }
++    ubus_free(ubus_ctx);
++  } else {
++    my_syslog(MS_DHCP | LOG_ERR, _("failed to connect to ubus"));
++  }
+ 
+ #  ifdef HAVE_DHCP6
+   for (context = daemon->dhcp6; context; context = context->next)

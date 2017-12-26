@@ -1,0 +1,286 @@
+--- a/main.c
++++ b/main.c
+@@ -33,6 +33,7 @@
+ 
+ static LIST_HEAD(pending_routes);
+ LIST_HEAD(interfaces);
++LIST_HEAD(other_network_prefixes);
+ int debug;
+ 
+ static int host_timeout;
+@@ -642,6 +643,16 @@ static void free_interfaces(void)
+ 	}
+ }
+ 
++static void free_other_network_prefixes(void)
++{
++	struct relayd_network_prefix *prefix, *tmp;
++
++	list_for_each_entry_safe(prefix, tmp, &other_network_prefixes, list) {
++		list_del(&prefix->list);	
++		free(prefix);
++	}
++}
++
+ static struct relayd_interface *alloc_interface(const char *ifname, bool managed)
+ {
+ 	struct relayd_interface *rif;
+@@ -661,6 +672,43 @@ static struct relayd_interface *alloc_in
+ 	return rif;
+ }
+ 
++static struct relayd_network_prefix *relayd_add_other_network_prefix(
++	const char *arg)
++{
++	int m = 32;
++	char *c;
++	struct in_addr addr;
++	struct relayd_network_prefix *prefix = NULL;
++	
++	prefix = calloc(1, sizeof(*prefix));
++
++	if (prefix) {
++		prefix->bitlen = 32;	
++		memset(prefix->addr, 0, sizeof(prefix->addr));
++		
++		if (strcmp(arg, "all") && strcmp(arg, "any") &&
++				strcmp(arg, "default")) {
++			if ((c = strchr(arg, '/'))) {
++				*c = 0;
++				if ((m = atoi(c + 1)) > prefix->bitlen) {
++					free(prefix);
++					return NULL;
++				} else {
++					prefix->bitlen = m;
++				}
++			}
++
++			if (!inet_aton(arg, &addr)) {
++				free(prefix);
++				return NULL;
++			}	
++			memcpy(prefix->addr, &addr.s_addr, sizeof(prefix->addr));
++		}
++		list_add(&prefix->list, &other_network_prefixes);
++	}
++	return prefix;
++}
++
+ static void die(int signo)
+ {
+ 	/*
+@@ -688,6 +736,7 @@ static int usage(const char *progname)
+ 			"	-B		Enable broadcast forwarding\n"
+ 			"	-D		Enable DHCP forwarding\n"
+ 			"	-L <ipaddr>	Enable local access using <ipaddr> as source address\n"
++			"	-n <ipaddr> If present, indicates prefix of other local networks\n"
+ 			"\n",
+ 		progname);
+ 	return -1;
+@@ -717,7 +766,7 @@ int main(int argc, char **argv)
+ 	local_route_table = 0;
+ 	uloop_init();
+ 
+-	while ((ch = getopt(argc, argv, "I:i:t:BDdT:G:R:L:")) != -1) {
++	while ((ch = getopt(argc, argv, "I:i:t:BDdT:G:R:L:n:")) != -1) {
+ 		switch(ch) {
+ 		case 'I':
+ 			managed = true;
+@@ -796,6 +845,11 @@ int main(int argc, char **argv)
+ 
+ 			relayd_add_pending_route((uint8_t *) &addr.s_addr, (uint8_t *) &addr2.s_addr, mask, 0);
+ 			break;
++		case 'n':
++			if (!relayd_add_other_network_prefix(optarg)) {
++				fprintf(stderr, "Invalid network prefix %s", optarg);
++			}
++			break;
+ 		case '?':
+ 		default:
+ 			return usage(argv[0]);
+@@ -835,6 +889,7 @@ int main(int argc, char **argv)
+ 	cleanup_hosts();
+ 	free_interfaces();
+ 	relayd_rtnl_done();
++	free_other_network_prefixes();
+ 	close(inet_sock);
+ 
+ 	return 0;
+--- a/relayd.h
++++ b/relayd.h
+@@ -86,6 +86,12 @@ struct relayd_route {
+ 	uint8_t mask;
+ };
+ 
++struct relayd_network_prefix {
++	struct list_head list;
++	uint8_t addr[4];
++	int bitlen;
++};
++
+ struct arp_packet {
+ 	struct ether_header eth;
+ 	struct ether_arp arp;
+@@ -97,6 +103,7 @@ struct rtnl_req {
+ } __packed;
+ 
+ extern struct list_head interfaces;
++extern struct list_head other_network_prefixes;
+ extern int debug;
+ extern int route_table;
+ extern uint8_t local_addr[4];
+--- a/route.c
++++ b/route.c
+@@ -56,6 +56,7 @@ static int get_route_table(struct relayd
+ 		return local_route_table;
+ }
+ 
++
+ static void
+ rtnl_rule_request(struct relayd_interface *rif, int flags)
+ {
+@@ -80,7 +81,7 @@ rtnl_rule_request(struct relayd_interfac
+ 		.table.rta = {
+ 			.rta_type = FRA_TABLE,
+ 			.rta_len = sizeof(req.table),
+-		},
++		}
+ 	};
+ 	const char *ifname = "lo";
+ 	int padding = sizeof(req.dev.ifname);
+@@ -99,6 +100,7 @@ rtnl_rule_request(struct relayd_interfac
+ 		padding -= sizeof(uint32_t);
+ 		*((uint32_t *) &req.dev.ifname) = 1;
+ 	}
++
+ 	req.table.table = get_route_table(rif);
+ 	req.nl.nlmsg_len = sizeof(req) - padding;
+ 
+@@ -117,6 +119,87 @@ rtnl_rule_request(struct relayd_interfac
+ 	rtnl_flush();
+ }
+ 
++static void
++rtnl_rule_request_dst(struct relayd_interface *rif, 
++		struct relayd_network_prefix *dst, int flags)
++{
++	static struct {
++		struct nlmsghdr nl;
++		struct rtmsg rt;
++		struct {
++			struct rtattr rta;
++			int table;
++		} __packed table;
++		struct {
++			struct rtattr rta;
++			uint8_t addr[4];
++		} __packed to;
++		struct {
++			struct rtattr rta;
++			char ifname[IFNAMSIZ + 1];
++		} __packed dev;
++	} __packed req = {
++		.rt = {
++			.rtm_family = AF_INET,
++			.rtm_table = RT_TABLE_UNSPEC,
++			.rtm_scope = RT_SCOPE_UNIVERSE,
++			.rtm_protocol = RTPROT_BOOT,
++		},
++		.table.rta = {
++			.rta_type = FRA_TABLE,
++			.rta_len = sizeof(req.table),
++		},
++		.to.rta = {
++			.rta_len = sizeof(req.to),
++		}
++	};
++	const char *ifname = "lo";
++	int padding = sizeof(req.dev.ifname);
++
++	if (rif)
++		ifname = rif->ifname;
++
++	if (!(flags & RULE_F_DEFGW_WORKAROUND)) {
++		req.dev.rta.rta_type = FRA_IFNAME;
++		padding -= strlen(ifname) + 1;
++		strcpy(req.dev.ifname, ifname);
++		req.dev.rta.rta_len = sizeof(req.dev.rta) + strlen(ifname) + 1;
++	} else {
++		req.dev.rta.rta_type = FRA_PRIORITY;
++		req.dev.rta.rta_len = sizeof(req.dev.rta) + sizeof(uint32_t);
++		padding -= sizeof(uint32_t);
++		*((uint32_t *) &req.dev.ifname) = 1;
++	}
++
++	if (dst) {
++		req.to.rta.rta_type = FRA_DST;
++		req.rt.rtm_dst_len = dst->bitlen;
++		memcpy(req.to.addr, dst->addr, sizeof(req.to.addr));
++		/* If "to" addr specified, use main table */
++		req.table.table = 254;
++	} else {
++		req.to.rta.rta_type = RTA_UNSPEC;
++		memset(req.to.addr, 0, sizeof(req.to.addr));
++		req.table.table = get_route_table(rif);
++	}
++
++	req.nl.nlmsg_len = sizeof(req) - padding;
++
++	req.nl.nlmsg_flags = NLM_F_REQUEST;
++	if (flags & RULE_F_ADD) {
++		req.nl.nlmsg_type = RTM_NEWRULE;
++		req.nl.nlmsg_flags |= NLM_F_CREATE | NLM_F_EXCL;
++
++		req.rt.rtm_type = RTN_UNICAST;
++	} else {
++		req.nl.nlmsg_type = RTM_DELRULE;
++		req.rt.rtm_type = RTN_UNSPEC;
++	}
++
++	send(rtnl_sock.fd, &req, req.nl.nlmsg_len, 0);
++	rtnl_flush();
++}
++
+ struct rtnl_addr {
+ 	struct rtattr rta;
+ 	uint8_t ipaddr[4];
+@@ -368,6 +451,15 @@ static void rtnl_dump_request(int nlmsg_
+ 	rtnl_seq++;
+ }
+ 
++static void relayd_rtnl_init_other_networks(void)
++{
++	struct relayd_network_prefix *prefix;
++
++	list_for_each_entry(prefix, &other_network_prefixes, list) {
++		rtnl_rule_request_dst(NULL, prefix, RULE_F_ADD);
++	}
++}
++
+ int relayd_rtnl_init(void)
+ {
+ 	struct sockaddr_nl snl_local;
+@@ -393,12 +485,23 @@ int relayd_rtnl_init(void)
+ 	rtnl_dump_seq = rtnl_seq;
+ 	rtnl_dump_request(RTM_GETNEIGH);
+ 	rtnl_rule_request(NULL, RULE_F_ADD);
++	relayd_rtnl_init_other_networks();
+ 
+ 	return 0;
+ }
+ 
++static void relayd_rtnl_deinit_other_networks(void)
++{
++	struct relayd_network_prefix *prefix;
++
++	list_for_each_entry(prefix, &other_network_prefixes, list) {
++		rtnl_rule_request_dst(NULL, prefix, 0);
++	}
++}
++
+ void relayd_rtnl_done(void)
+ {
++	relayd_rtnl_deinit_other_networks();
+ 	rtnl_rule_request(NULL, 0);
+ 	uloop_fd_delete(&rtnl_sock);
+ 	close(rtnl_sock.fd);

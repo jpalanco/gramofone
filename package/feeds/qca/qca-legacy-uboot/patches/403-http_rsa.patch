@@ -1,0 +1,36 @@
+Index: u-boot-2006-04-06-1725/net/net.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/net.c
++++ u-boot-2006-04-06-1725/net/net.c
+@@ -1851,16 +1851,24 @@ int do_http_upgrade(const unsigned char
+ 	char buf[128];
+ 	int ret;
+ 
+-	if (size > CONFIG_MAX_FLASH)
++	if (size - 516 > CONFIG_MAX_FLASH)
++	{
++		puts("image exceeds size limit\n");
+ 		return -1;
+-
++	}
++	
+ 	ret = rsa_check_signature(&data[4], 0x200, &data[516], size - 516);
+-	printf("rsa: %d\n", ret);
++	if(!ret)
++	{
++		/* write the image to the flash */
++		puts("http ugrade ...\n");
++		sprintf(buf, "era 0x9f020000 +0x%x; cp.b 0x80060204 0x9f020000 0x%x", size - 516, size - 516);
++		run_command(buf, 0);
++	} else {
++		puts("rsa verification failed: Abort http upgrade\n");
++		return -1;
++	}
+ 
+-	/* write the image to the flash */
+-	puts("http ugrade ...\n");
+-	sprintf(buf, "era 0x9f020000 +0x%x; cp.b 0x80060204 0x9f020000 0x%x", size - 516, size - 516);
+-	run_command(buf, 0);
+ 	return 0;
+ }
+ 

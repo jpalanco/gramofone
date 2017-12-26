@@ -1,0 +1,340 @@
+Index: u-boot-2006-04-06-1725/net/uip-0.9/httpd.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/uip-0.9/httpd.c	2014-03-18 05:45:47.426407964 +0000
++++ u-boot-2006-04-06-1725/net/uip-0.9/httpd.c	2014-03-18 05:45:47.434407961 +0000
+@@ -6,9 +6,10 @@
+ 
+ #include "../../include/common.h"
+ 
+-#define HTTP_NONE		0
+-#define HTTP_FILE		1
+-#define HTTP_FIRMWARE		2
++#define HTTP_NONE			0
++#define HTTP_FILE			1
++#define HTTP_FIRMWARE			2
++#define HTTP_FIRMWARE_START		3
+ 
+ #define PRINT(x) printf("%s", x)
+ #define PRINTLN(x) printf("%s\n", x)
+@@ -28,7 +29,7 @@
+ unsigned char *upload_data;
+ extern ulong		NetBootFileXferSize;
+ int upload_running = 0;
+-
++int no_post = 0;
+ extern unsigned char *fon_lock_flash_addr(void);
+ 
+ #define ISO_G        0x47
+@@ -50,10 +51,8 @@
+ #define ISO_hash     0x23
+ #define ISO_period   0x2e
+ 
+-static char eol[3] = { 0x0d, 0x0a, 0x00 };
+-static char eol2[5] = { 0x0d, 0x0a, 0x0d, 0x0a, 0x00 };
+-static char boundary[128];
+-static int boundary_len = 0;
++char eol[5] = { 0x0d, 0x0a, 0x0d, 0x0a, 0x00 };
++char eol2[3] = { 0x0d, 0x0a, 0x00 };
+ 
+ /* we use this so that we can do without the ctype library */
+ #define is_digit(c)	((c) >= '0' && (c) <= '9')
+@@ -78,8 +77,7 @@
+ {
+ 	struct fs_file fsfile;
+ 	int index = 0;
+-	u8_t i;
+-	unsigned char *lock = fon_lock_flash_addr(); 
++	unsigned char *lock = fon_lock_flash_addr();
+ 	switch(uip_conn->lport) {
+ 	case HTONS(80):
+ 		hs = (struct httpd_state *)(uip_conn->appstate);
+@@ -103,7 +101,7 @@
+ 			{
+ 				hs->state = HTTP_FILE;
+ 			}
+-			if(uip_appdata[0] == ISO_P &&
++			if(!no_post && uip_appdata[0] == ISO_P &&
+ 				uip_appdata[1] == ISO_O &&
+ 				uip_appdata[2] == ISO_S &&
+ 				uip_appdata[3] == ISO_T &&
+@@ -118,6 +116,7 @@
+ 			}
+ 			if(hs->state == HTTP_FILE)
+ 			{
++				int i;
+ 				for(i = 4; i < 40; ++i)
+ 				{
+ 					if(uip_appdata[i] == ISO_space ||
+@@ -162,86 +161,68 @@
+ 			}
+ 			if(hs->state == HTTP_FIRMWARE)
+ 			{
+-				unsigned char *start = (unsigned char*)uip_appdata;
+-				char *clen = strstr((char *)start, "Content-Length:");
+-				int len = 0;
+-				unsigned char *next, *end;
+-				unsigned char *boundary_start;
+-				int i;
+-				uip_appdata[uip_len] = '\0';
++				char *tmp, *end;
++				int i, blen = 0;
+ 
+-				if (strstr((char *)start, "filename=\"\""))
+-				{
+-					index = 1;
+-					goto out;
+-				}
+-
+-				if(clen)
+-				{
+-					clen += sizeof("Content-Length:");
+-					next = (unsigned char *)strstr(clen, eol);
+-					if(next)
+-					{
+-						len = atoi(clen);
+-						next++;
+-						printf("expecting %d bytes\n", len);
+-						upload_data = httpd_upload_data = (unsigned char *)do_http_tmp_address();
+-						printf("received data will be stored at %p\n", upload_data);
+-						if(!upload_data)
+-						{
+-							printf("failed to allocate memory\n");
+-							index = 1;
+-							goto out;
+-						}
+-					} else {
+-						index = 1;
+-						goto out;
+-					}
++				uip_appdata[uip_len] = '\0';
++				tmp = strstr((char *) uip_appdata, "Content-Type: multipart/form-data; boundary=");
++				if (!tmp) {
++					printf("unable to find content type\n");
++					uip_abort();
++					return;
+ 				}
+-				if(len < 4 * 1024)
+-				{
+-					index = 1;
+-					goto out;
++				tmp += strlen("Content-Type: multipart/form-data; boundary=");
++				end = strstr(tmp, eol2);
++				if (!end) {
++					printf("unable to find boundary\n");
++					uip_abort();
++					return;
+ 				}
+-				boundary_start = (unsigned char *)strstr((char *)next, "---");
+-				if(!boundary_start)
+-				{
+-					index = 1;
+-					goto out;
++				blen = end - tmp;
++				printf("boundary length is %d\n", blen);
++
++				tmp = strstr((char *) uip_appdata, "Content-Length:");
++				if (!tmp) {
++					printf("unable to find content length\n");
++					uip_abort();
++					return;
+ 				}
+-				end = (unsigned char *)strstr((char *)boundary_start, eol);
+-				if(!end)
+-				{
+-					index = 1;
+-					goto out;
++
++				tmp += strlen("Content-Length: ");
++				hs->upload_total = atoi(tmp) - blen - 8;
++				printf("-> Content-Length is %d\n", hs->upload_total);
++
++				tmp = strstr(tmp, eol);
++				if (!tmp) {
++					printf("failed to get first eol\n");
++					uip_abort();
++					return;
+ 				}
+-				boundary_len = end - boundary_start;
+-				memcpy(boundary, boundary_start, boundary_len);
+-				boundary[boundary_len] = 0;
+-				next = (unsigned char *)strstr((char *)boundary_start, "name=\"firmware\";");
+-				if(!next)
+-				{
+-					index = 1;
+-					goto out;
++				tmp += 4;
++				/* catch safari and chrome mpfd chunking */
++				if (*tmp == 0) {
++					printf("mfp in second packet\n");
++					hs->upload = 0;
++					hs->state = HTTP_FIRMWARE_START;
++					return;
+ 				}
+-				next = (unsigned char *)strstr((char *)next, eol2);
+-				if(!next)
+-				{
+-					index = 1;
+-					goto out;
++				/* only firefox should get to here */
++				end = strstr(tmp, eol);
++				if (!end) {
++					/* if we dont see a eol then we actually hit a bug, this is the error path that previously prevented safari / chromf from working */
++					printf("failed to get second eol\n");
++					uip_abort();
++					return;
+ 				}
+-				next += 4;
+-				hs->script = 0;
+-				hs->state = HTTP_FIRMWARE;
+-				hs->upload = uip_len - (next - start);
+-				hs->upload_total = len - (int)(next - boundary_start);
+-				hs->upload_total -= (strlen(boundary) + 6);
+-				//printf("storing %d bytes at %p\n", (int)hs->upload, upload_data);
++				end += 4;
++				hs->upload_total -= (end - tmp);
++				hs->upload = uip_len - (end - (char *) uip_appdata);
++				printf("data %d\n", hs->upload);
++				upload_data = httpd_upload_data = (unsigned char *)do_http_tmp_address();
+ 				for(i = 0; i < hs->upload; i++)
+-					upload_data[i] = next[i];
+-				upload_data += (int)hs->upload;
+-				printf("%d / %d\n", (int)hs->upload, hs->upload_total);
+-				uip_slen = 0;
++					upload_data[i] = end[i];
++				upload_data += hs->upload;
++				hs->count = 0;
+ 				return;
+ 			}
+ 		}
+@@ -254,16 +235,40 @@
+ 			hs->count = fsfile.len;
+ 			index = 0;
+ 		}
+-		if(hs->state == HTTP_FIRMWARE)
++		if(hs->state == HTTP_FIRMWARE_START)
+ 		{
+-			if(uip_newdata())
+-			{
+-				int i;
++			/* we get here ith safari and chrome, dkip over form meta data */
++			int i;
++			uip_appdata[uip_len] = '\0';
++			if(uip_newdata()) {
++				unsigned char *end = strstr(uip_appdata, eol);
++				if (!end) {
++					printf("failed to get second eol\n");
++					uip_abort();
++					return;
++				}
++				end += 4;
++				hs->upload_total -= (end - (unsigned char *) uip_appdata);
++				hs->upload = uip_len - (end - (unsigned char *) uip_appdata);
++				printf("data %d\n", hs->upload);
++				upload_data = httpd_upload_data = (unsigned char *)do_http_tmp_address();
++				/* in theory there might be data after the from meta, however in pratice safari and chrome wont send appended data */
++				for(i = 0; i < hs->upload; i++)
++					upload_data[i] = end[i];
++				upload_data += hs->upload;
++				hs->count = 0;
++				hs->state = HTTP_FIRMWARE;
++			}
++		} else if(hs->state == HTTP_FIRMWARE)
++		{
++			static int cnt;
++			int i;
++			/* let the data flow */
++			if(uip_newdata()) {
+ 				hs->count = 0;
+ 				uip_appdata[uip_len] = '\0';
+ 				hs->upload += uip_len;
+-				//printf("storing %d bytes at %p\n", uip_len, upload_data);
+-				printf("%d / %d\n", (int)hs->upload, hs->upload_total);
++				if (cnt++%250 == 0) printf("%d / %d\n", (int)hs->upload, hs->upload_total);
+ 				for(i = 0; i < uip_len; i++)
+ 					upload_data[i] = uip_appdata[i];
+ 				upload_data += uip_len;
+@@ -274,9 +279,10 @@
+ 					NetBootFileXferSize = hs->upload_total;
+ 					httpd_signature_check_success =
+ 						(!do_http_signature_check(&httpd_upload_data[0], NetBootFileXferSize))?1:0;
+-					if(httpd_signature_check_success)
++					if(httpd_signature_check_success) {
+ 						fs_open(file_flashing_html.name, &fsfile);
+-					else
++						no_post = 1;
++					} else
+ 						fs_open(file_fail_html.name, &fsfile);
+ 					hs->script = 0;
+ 					hs->state = HTTP_FILE;
+Index: u-boot-2006-04-06-1725/net/uip-0.9/uip_arch.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/uip-0.9/uip_arch.c	2014-03-18 05:45:47.322407968 +0000
++++ u-boot-2006-04-06-1725/net/uip-0.9/uip_arch.c	2014-03-18 05:45:47.438407961 +0000
+@@ -43,29 +43,19 @@
+ void
+ uip_add32(u8_t *op32, u16_t op16)
+ {
+-  
+-  uip_acc32[3] = op32[3] + (op16 & 0xff);
+-  uip_acc32[2] = op32[2] + (op16 >> 8);
+-  uip_acc32[1] = op32[1];
+-  uip_acc32[0] = op32[0];
+-  
+-  if(uip_acc32[2] < (op16 >> 8)) {
+-    ++uip_acc32[1];    
+-    if(uip_acc32[1] == 0) {
+-      ++uip_acc32[0];
+-    }
+-  }
+-  
+-  
+-  if(uip_acc32[3] < (op16 & 0xff)) {
+-    ++uip_acc32[2];  
+-    if(uip_acc32[2] == 0) {
+-      ++uip_acc32[1];    
+-      if(uip_acc32[1] == 0) {
+-	++uip_acc32[0];
+-      }
+-    }
+-  }
++ unsigned int res;
++  res = op32[0] << 24;
++  res += op32[1] << 16;
++  res += op32[2] << 8;
++  res += op32[3];
++//printf("res = %u %x %u %x %u %x\n", res, res, op16, op16, res + op16, res + op16);
++
++ res += op16;
++
++  uip_acc32[3] = res & 0xff;
++  uip_acc32[2] = (res >> 8) & 0xff;
++  uip_acc32[1] = (res >> 16) & 0xff;
++  uip_acc32[0] = res >> 24;
+ }
+ /*-----------------------------------------------------------------------------------*/
+ u16_t
+Index: u-boot-2006-04-06-1725/net/uip-0.9/uipopt.h
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/uip-0.9/uipopt.h	2014-03-18 05:45:47.322407968 +0000
++++ u-boot-2006-04-06-1725/net/uip-0.9/uipopt.h	2014-03-18 05:45:47.438407961 +0000
+@@ -327,7 +327,7 @@
+  *
+  * \hideinitializer
+  */
+-#define UIP_RECEIVE_WINDOW   32768
++#define UIP_RECEIVE_WINDOW   1400
+ 
+ /**
+  * Determines if support for TCP urgent data notification should be
+Index: u-boot-2006-04-06-1725/net/net.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/net.c	2014-03-18 05:45:47.426407964 +0000
++++ u-boot-2006-04-06-1725/net/net.c	2014-03-18 05:47:21.318404143 +0000
+@@ -1918,6 +1918,7 @@
+ 		led = !led;
+ 		break;
+ 	case HTTP_PROGRESS_UPLOAD_READY:
++		flash_led(1, 1, 1, 0);
+ 		puts("http upload ready\n");
+ 		break;
+ 	case HTTP_PROGRESS_UGRADE_READY:

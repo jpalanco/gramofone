@@ -1,0 +1,8 @@
+config watchdog watchdog
+	option timeout 30
+	option frequency 5
+
+config instance instance
+	option respawn_timeout 5
+	option respawn_threshold 1
+	option respawn_retry 5000

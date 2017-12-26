@@ -1,0 +1,41 @@
+--- a/wpa_supplicant/wpa_supplicant.c
++++ b/wpa_supplicant/wpa_supplicant.c
+@@ -2960,11 +2960,36 @@ static int wpa_supplicant_init_iface(str
+ 	if (iface->hostapd_ctrl) {
+ 		char *cmd = "DOWN";
+ 		char buf[256];
+-		int len = sizeof(buf);
++		int len = sizeof(buf), hostapd_connect_tries = 0;
+ 
+ 		wpa_s->hostapd = wpa_ctrl_open(iface->hostapd_ctrl);
++		while (!wpa_s->hostapd && hostapd_connect_tries < 5) {
++			wpa_printf(MSG_ERROR, "\nFailed to connect to hostapd. Trying again"
++					" in one second\n");
++			sleep(1);
++			wpa_s->hostapd = wpa_ctrl_open(iface->hostapd_ctrl);
++			hostapd_connect_tries++;
++		}
+ 		if (!wpa_s->hostapd) {
+-			wpa_printf(MSG_ERROR, "\nFailed to connect to hostapd\n");
++			wpa_printf(MSG_ERROR, "\nFailed to connect to hostapd. Reloading "
++					"wifi\n");
++			int ubusres = UBUS_STATUS_OK;	
++			uint32_t wifid;
++			struct ubus_context *ubus_ctx;
++			ubus_ctx = ubus_connect(NULL);
++
++			if(ubus_ctx) {
++				if((ubusres = ubus_lookup_id(ubus_ctx, "wifid", &wifid)) !=
++						UBUS_STATUS_OK) {
++					wpa_msg(wpa_s, MSG_ERROR, "wifid object not found");	
++				} else {
++					blob_buf_init(&b, 0);
++					wpa_msg(wpa_s, MSG_INFO, "Requesting wifid reload");
++					ubus_invoke(ubus_ctx, wifid, "reload", b.head, NULL, 0, 1);
++					blob_buf_free(&b);
++				}
++				ubus_free(ubus_ctx);
++			}
+ 			return -1;
+ 		}
+ 		if (hostapd_stop(wpa_s) < 0)

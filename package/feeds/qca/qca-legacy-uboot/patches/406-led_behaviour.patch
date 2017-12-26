@@ -1,0 +1,180 @@
+Index: u-boot-2006-04-06-1725/board/ar7240/db12x/db12x.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/board/ar7240/db12x/db12x.c
++++ u-boot-2006-04-06-1725/board/ar7240/db12x/db12x.c
+@@ -93,7 +93,7 @@ void wasp_gpio_config(void)
+ 
+ 	/* turn on leds */
+ 	ar7240_reg_rmw_set(GPIO_SET_ADDRESS,
+-		(1 << DB120_GPIO_LED_RED) | (1 << DB120_GPIO_LED_GREEN) |
++		(1 << DB120_GPIO_LED_RED) | (0 << DB120_GPIO_LED_GREEN) |
+ 		(0 << DB120_GPIO_LED_BLUE));
+ 
+ 	prmsg("button -> %X\n", ar7240_reg_rd(GPIO_IN_ADDRESS) & (1 << DB120_GPIO_BTN_WPS));
+@@ -104,17 +104,11 @@ int reset_button_pressed(void)
+ 	return !(ar7240_reg_rd(GPIO_IN_ADDRESS) & (1 << DB120_GPIO_BTN_WPS));
+ }
+ 
+-void flash_led(int i)
++void flash_led(int i, int red, int green, int blue)
+ {
+-	if (i) {
+-		ar7240_reg_rmw_set(GPIO_CLEAR_ADDRESS,
+-				   (1 << DB120_GPIO_LED_RED) | (1 << DB120_GPIO_LED_GREEN) |
+-				   (1 << DB120_GPIO_LED_BLUE));
+-	} else {
+-		ar7240_reg_rmw_set(GPIO_SET_ADDRESS,
+-				   (1 << DB120_GPIO_LED_RED) | (1 << DB120_GPIO_LED_GREEN) |
+-				   (0 << DB120_GPIO_LED_BLUE));
+-	}
++		ar7240_reg_rmw_set(!i?GPIO_CLEAR_ADDRESS:GPIO_SET_ADDRESS,
++				(red << DB120_GPIO_LED_RED) | (green << DB120_GPIO_LED_GREEN) |
++				(blue << DB120_GPIO_LED_BLUE));
+ }
+ 
+ int
+Index: u-boot-2006-04-06-1725/common/main.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/common/main.c
++++ u-boot-2006-04-06-1725/common/main.c
+@@ -44,7 +44,7 @@ DECLARE_GLOBAL_DATA_PTR;
+ 
+ extern int max_error;
+ extern int reset_button_pressed(void);
+-extern void flash_led(int i);
++extern void flash_led(int i, int red, int blue, int green);
+ 
+ #ifdef CONFIG_DUALIMAGE_SUPPORT
+ extern unsigned findbdr(unsigned int flashaddr);
+@@ -454,7 +454,6 @@ void main_loop (void)
+ 	*magic1 = *magic2 = 0x0;
+ 
+ 	if (magic || reset_button_pressed()) {
+-		flash_led(0);
+ 		run_command ("http", 0);
+ 	}
+ 
+@@ -464,6 +463,8 @@ void main_loop (void)
+ 		run_command("tftp 0x81000000 fon2415.mfg; bootm 0x81000000", 0);
+ 	}
+ 
++	flash_led(1, 1, 1, 0);
++
+ # ifndef CFG_HUSH_PARSER
+ 		run_command (s, 0);
+ # else
+Index: u-boot-2006-04-06-1725/net/net.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/net.c
++++ u-boot-2006-04-06-1725/net/net.c
+@@ -95,6 +95,7 @@
+ #include "uip-0.9/uipopt.h"
+ #include "uip-0.9/uip.h"
+ #include "uip-0.9/uip_arp.h"
++unsigned long long ticks_sq = CFG_HZ/4;
+ static int https_running = 0;
+ int httpd_upload_complete = 0;
+ unsigned char *httpd_upload_data = 0;
+@@ -104,7 +105,7 @@ void NetSendHttpd(void);
+ extern int do_reset (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]); 
+ #endif
+ 
+-extern void flash_led(int i);
++extern void flash_led(int i, int red, int green, int blue);
+ extern int reset_button_pressed(void);
+ 
+ #if (CONFIG_COMMANDS & CFG_CMD_NET)
+@@ -1877,26 +1878,41 @@ static int led = 1;
+ int do_http_progress(const int state)
+ {
+ 	/* toggle LED's here */
++	int ret = 0;
+ 	switch(state) {
+ 	case HTTP_PROGRESS_START:
+ 		puts("http start\n");
+ 		break;
+ 	case HTTP_PROGRESS_TIMEOUT:
+-		if (!reset_button_pressed())
+-			factory_default = -1;
+ 		if ((factory_default >= 0) && reset_button_pressed())
+ 			factory_default++;
+-		if (factory_default > 20) {
+-			printf("fatcory reset\n");
+-			flash_led(0);
+-			while (reset_button_pressed())
+-				;
+-			run_command("set bootargs reset_factory ;bootm 0x9f020000", 0);
+-			do_reset (0,0,0,0);
++		if (factory_default >= 32 && factory_default < 52) {
++			if(!reset_button_pressed())
++			{
++				puts("factory reset\n");
++				flash_led(1, 1, 1, 0);
++				run_command("set bootargs reset_factory ;bootm 0x9f020000", 0);
++				do_reset (0,0,0,0);
++			}
++			flash_led(led, led, 1, 0);
++			puts("x");
++		}
++		if (factory_default >= 52)
++		{
++			//avoid resetting to defaults on long presses
++			//due to the location of the led in gramofon
++			while(reset_button_pressed());
++			ret = 1;
++			flash_led(1, 1, 1, 0);
++		}
++		if (factory_default < 32)
++		{
++			if (!reset_button_pressed())
++				factory_default = -1;
++			flash_led(led, 1, 0, 0);
++			puts(".");
+ 		}
+-		flash_led(led);
+ 		led = !led;
+-		puts(".");
+ 		break;
+ 	case HTTP_PROGRESS_UPLOAD_READY:
+ 		puts("http upload ready\n");
+@@ -1908,7 +1924,7 @@ int do_http_progress(const int state)
+ 		puts("http ugrade failed\n");
+ 		break;
+ 	}
+-	return 0;
++	return ret;
+ }
+ 
+ unsigned long do_http_tmp_address(void)
+@@ -2078,15 +2094,23 @@ restart:
+ 			HttpdHandler();
+ 		} else {
+ 			t1 = get_ticks();
+-			if(t1 - tout > 100000000) {
+-				do_http_progress(HTTP_PROGRESS_TIMEOUT);
+-				tout = t1;
+-				restart++;
+-				if (!got_data && (restart % 20 == 0)) {
+-					if (!got_data) {
+-						eth_halt();
+-						eth_init(gd->bd);
++			if(t1 - tout > ticks_sq) {
++				if (!do_http_progress(HTTP_PROGRESS_TIMEOUT)) {
++					tout = t1;
++					restart++;
++					if (!got_data && (restart % 20 == 0)) {
++						if (!got_data) {
++							eth_halt();
++							eth_init(gd->bd);
++						}
+ 					}
++
++				} else {
++					https_running = 0;
++					eth_halt();
++					puts("\nButton pressed for too long\n");
++					run_command("bootm 0x9f020000", 0);
++					do_reset(0, 0, 0, 0);
+ 				}
+ 			}
+ 		}

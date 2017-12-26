@@ -1,0 +1,17 @@
+diff -Nur libubox.orig/uloop.h libubox/uloop.h
+--- libubox.orig/uloop.h	2014-01-17 11:54:45.234914014 +0100
++++ libubox/uloop.h	2014-01-17 18:00:34.208222388 +0100
+@@ -95,11 +95,10 @@
+ int uloop_process_add(struct uloop_process *p);
+ int uloop_process_delete(struct uloop_process *p);
+ 
+-static inline void uloop_end(void)
+-{
++inline void uloop_end(void);
++inline void uloop_end(void) {
+ 	uloop_cancelled = true;
+ }
+-
+ int uloop_init(void);
+ void uloop_run(void);
+ void uloop_done(void);

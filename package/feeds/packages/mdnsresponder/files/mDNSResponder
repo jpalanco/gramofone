@@ -1,0 +1,27 @@
+config interfaces 'interfaces'
+       list private 'br-lan'
+       list public 'wpub'
+       list public 'weap'
+       list wan	   'eth0'
+
+config private-service 'HTTPDRPCPriv'
+       option name  '"Gramofon HTTPD-RPC"'
+       option type '_http._tcp.'
+       option domain 'local'
+       option port '80'
+       list txt 'Gramofon HTTPD-RPC server'
+
+config private-service 'MPDPriv'
+       option name  '"Gramofon MPD"'
+       option type '_mpd._tcp.'
+       option domain 'local'
+       option port '6600'
+       list txt 'Gramofon MPD server'
+
+config public-service 'MPDPub'
+       option name  '"Gramofon MPD"'
+       option type '_mpd._tcp.'
+       option domain 'local'
+       option port '6600'
+       list txt 'Gramofon MPD server'
+

@@ -1,0 +1,43 @@
+--- a/drivers/mtd/mtdcore.c
++++ b/drivers/mtd/mtdcore.c
+@@ -102,6 +102,28 @@ static LIST_HEAD(mtd_notifiers);
+ #define MTD_DEVT(index) 0
+ #endif
+ 
++static bool unlock = 0;
++module_param(unlock, bool, 0);
++MODULE_PARM_DESC(unlock, "Give write permission to partitions containin device specific data");
++
++static int mtd_partition_is_device_specific (struct mtd_info *mtd)
++{
++	int is_device_specific = 0;
++	int i = 0;
++	const unsigned int num_parts = 2;
++	const char *dev_specific_parts[] = {
++		"art",
++		"fon_data"
++	};
++
++	while (i<num_parts && strcmp(mtd->name, dev_specific_parts[i])) {
++		i++;
++	}
++	
++	is_device_specific = (i<num_parts);
++	return is_device_specific;
++}
++
+ /* REVISIT once MTD uses the driver model better, whoever allocates
+  * the mtd_info will probably want to use the release() hook...
+  */
+@@ -293,6 +315,11 @@ int add_mtd_device(struct mtd_info *mtd)
+ 	struct mtd_notifier *not;
+ 	int i, error;
+ 
++	if (unlock && mtd_partition_is_device_specific(mtd)) {
++		printk(KERN_INFO "mtd: partition %s is device specific. Unlocking it as requested\n", mtd->name);
++		mtd->flags |= MTD_WRITEABLE;
++	}
++
+ 	if (!mtd->backing_dev_info) {
+ 		switch (mtd->type) {
+ 		case MTD_RAM:

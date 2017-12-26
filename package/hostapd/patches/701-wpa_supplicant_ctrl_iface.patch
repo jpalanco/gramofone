@@ -1,0 +1,12 @@
+diff -Nur hostapd-20130405/wpa_supplicant/ctrl_iface.c hostapd-20130405.new/wpa_supplicant/ctrl_iface.c
+--- hostapd-20130405/wpa_supplicant/ctrl_iface.c	2013-07-29 16:01:48.499998674 +0200
++++ hostapd-20130405.new/wpa_supplicant/ctrl_iface.c	2013-07-31 12:32:05.008315898 +0200
+@@ -2384,7 +2384,7 @@
+ 		return -1;
+ 	}
+ 
+-	value = wpa_config_get_no_key(ssid, name);
++	value = wpa_config_get(ssid, name);
+ 	if (value == NULL) {
+ 		wpa_printf(MSG_DEBUG, "CTRL_IFACE: Failed to get network "
+ 			   "variable '%s'", name);

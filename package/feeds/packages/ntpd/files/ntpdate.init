@@ -1,0 +1,25 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2008 OpenWrt.org
+
+START=23
+
+create_keyfile() {
+	echo $1 >> /tmp/ntp.keys
+}
+
+run_ntp() {
+	local cfg=$1
+
+	rm /tmp/ntp.keys
+	config_list_foreach "$cfg" key create_keyfile
+
+	config_get server "$cfg" server
+	/usr/sbin/ntpdate -a 1 -k /tmp/ntp.keys -s -b -u $server
+}
+
+start() {
+	config_load ntpdate	
+	for i in server1 server2 server3 server4 server5 ; do
+		run_ntp $i && break
+	done
+}

@@ -1,0 +1,43 @@
+--- a/arch/mips/ath79/Kconfig
++++ b/arch/mips/ath79/Kconfig
+@@ -84,6 +84,20 @@ config ATH79_MACH_AP123
+ 	   Say 'Y' here if you want your kernel to support the
+ 	   Atheros AP123 reference board
+ 
++config ATH79_MACH_AP123_AK4430
++	bool "Atheros AP123 reference board with AK4430 extension"
++	select SOC_AR934X
++	select ATH79_DEV_AUDIO
++	select ATH79_DEV_ETH
++	select ATH79_DEV_GPIO_BUTTONS
++	select ATH79_DEV_LEDS_GPIO
++	select ATH79_DEV_M25P80
++	select ATH79_DEV_USB
++	select ATH79_DEV_WMAC
++	help
++	  Say 'Y' here if you want your kernel to support the
++	  Atheros AP123 reference board with AK4430 extension.
++
+ config ATH79_MACH_AP135
+ 	bool "Atheros AP135 reference board"
+ 	select SOC_QCA955X
+--- a/arch/mips/ath79/Makefile
++++ b/arch/mips/ath79/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_ATH79_MACH_ALL0315N)	+= mac
+ obj-$(CONFIG_ATH79_MACH_AP113)		+= mach-ap113.o
+ obj-$(CONFIG_ATH79_MACH_AP121)		+= mach-ap121.o
+ obj-$(CONFIG_ATH79_MACH_AP123)		+= mach-ap123.o
++obj-$(CONFIG_ATH79_MACH_AP123_AK4430)	+= mach-ap123-ak4430.o
+ obj-$(CONFIG_ATH79_MACH_AP135)		+= mach-ap135.o
+ obj-$(CONFIG_ATH79_MACH_AP135_DUAL)	+= mach-ap135.o
+ obj-$(CONFIG_ATH79_MACH_AP136)		+= mach-ap136.o
+--- a/arch/mips/ath79/machtypes.h
++++ b/arch/mips/ath79/machtypes.h
+@@ -26,6 +26,7 @@ enum ath79_mach_type {
+ 	ATH79_MACH_AP121,		/* Atheros AP121 reference board */
+ 	ATH79_MACH_AP121_MINI,		/* Atheros AP121-MINI reference board */
+ 	ATH79_MACH_AP123,		/* Atheros AP123 reference board */
++	ATH79_MACH_AP123_AK4430,	/* Atheros AP123/AK4430 reference board */
+ 	ATH79_MACH_AP135,		/* Atheros AP135 reference board */
+ 	ATH79_MACH_AP135_DUAL,		/* Atheros AP135 Dual reference board */
+ 	ATH79_MACH_AP136,		/* Atheros AP136 reference board */

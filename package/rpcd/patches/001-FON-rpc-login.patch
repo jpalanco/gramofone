@@ -1,0 +1,220 @@
+Index: rpcd-2013-09-05/session.c
+===================================================================
+--- rpcd-2013-09-05.orig/session.c	2013-09-05 17:07:58.802329670 +0200
++++ rpcd-2013-09-05/session.c	2013-09-05 17:07:58.798329669 +0200
+@@ -21,6 +21,7 @@
+ #include <libubox/utils.h>
+ #include <libubus.h>
+ #include <fnmatch.h>
++#include <uci.h>
+ 
+ #include <rpcd/session.h>
+ 
+@@ -100,6 +101,16 @@
+ 	[RPC_DUMP_DATA] = { .name = "data", .type = BLOBMSG_TYPE_TABLE },
+ };
+ 
++enum {
++	RPC_SL_USERNAME,
++	RPC_SL_PASSWORD,
++	__RPC_SL_MAX,
++};
++static const struct blobmsg_policy login_policy[__RPC_SL_MAX] = {
++	[RPC_SL_USERNAME] = { .name = "username", .type = BLOBMSG_TYPE_STRING },
++	[RPC_SL_PASSWORD] = { .name = "password", .type = BLOBMSG_TYPE_STRING },
++};
++
+ /*
+  * Keys in the AVL tree contain all pattern characters up to the first wildcard.
+  * To look up entries, start with the last entry that has a key less than or
+@@ -215,7 +226,8 @@
+ static void
+ rpc_touch_session(struct rpc_session *ses)
+ {
+-	uloop_timeout_set(&ses->t, ses->timeout * 1000);
++	if (ses->timeout)
++		uloop_timeout_set(&ses->t, ses->timeout * 1000);
+ }
+ 
+ static void
+@@ -275,7 +287,7 @@
+ }
+ 
+ static struct rpc_session *
+-rpc_session_create(int timeout)
++rpc_session_create(int timeout, const char *id)
+ {
+ 	struct rpc_session *ses;
+ 	struct rpc_session_cb *cb;
+@@ -285,7 +297,10 @@
+ 	if (!ses)
+ 		return NULL;
+ 
+-	rpc_random(ses->id);
++	if (id)
++		strncpy(ses->id, id, 32);
++	else
++		rpc_random(ses->id);
+ 
+ 	ses->timeout = timeout;
+ 
+@@ -325,7 +340,7 @@
+ 	if (tb)
+ 		timeout = blobmsg_get_u32(tb);
+ 
+-	ses = rpc_session_create(timeout);
++	ses = rpc_session_create(timeout, NULL);
+ 	if (ses)
+ 		rpc_session_dump(ses, ctx, req);
+ 
+@@ -866,6 +881,64 @@
+ 	return true;
+ }
+ 
++static int
++rpc_handle_login(struct ubus_context *ctx, struct ubus_object *obj,
++                   struct ubus_request_data *req, const char *method,
++                   struct blob_attr *msg)
++{
++	struct rpc_session *ses = NULL;
++	struct blob_attr *tb[__RPC_SL_MAX];
++
++	blobmsg_parse(login_policy, __RPC_SL_MAX, tb, blob_data(msg), blob_len(msg));
++
++	if (!tb[RPC_SL_USERNAME] || !tb[RPC_SL_PASSWORD])
++		return UBUS_STATUS_INVALID_ARGUMENT;
++
++	struct uci_context *uci = uci_alloc_context();
++	uci_load(uci, "rpcd", NULL);
++
++	struct uci_ptr ptr = {
++		.package = "rpcd",
++		.section = blobmsg_get_string(tb[RPC_SL_USERNAME]),
++		.option = "password"
++	};
++
++	if (!uci_lookup_ptr(uci, &ptr, NULL, false) &&
++			(ptr.flags & UCI_LOOKUP_COMPLETE) &&
++			ptr.last->type == UCI_TYPE_OPTION && ptr.o->type == UCI_TYPE_STRING &&
++			!strcmp(ptr.o->v.string, blobmsg_get_string(tb[RPC_SL_PASSWORD])))
++		ses = rpc_session_create(RPC_DEFAULT_SESSION_TIMEOUT, NULL);
++
++	if (ses) {
++		ptr.option = "grant";
++		if (!uci_lookup_ptr(uci, &ptr, NULL, false)
++			&& (ptr.flags & UCI_LOOKUP_COMPLETE)
++			&& ptr.last->type == UCI_TYPE_OPTION
++			&& ptr.o->type == UCI_TYPE_LIST) {
++
++			struct uci_element *e;
++			char buf[256], *saveptr, *object, *method;
++			uci_foreach_element(&ptr.o->v.list, e) {
++				strncpy(buf, e->name, sizeof(buf) - 1);
++				object = strtok_r(buf, " ", &saveptr);
++				method = strtok_r(NULL, "", &saveptr);
++
++				if (!method)
++					method = "*";
++
++				rpc_session_grant(ses, NULL, "ubus", object, method);
++			}
++		}
++
++		rpc_session_dump(ses, ctx, req);
++	}
++
++
++	uci_free_context(uci);
++
++	return (ses) ? UBUS_STATUS_OK : UBUS_STATUS_PERMISSION_DENIED;
++}
++
+ int rpc_session_api_init(struct ubus_context *ctx)
+ {
+ 	static const struct ubus_method session_methods[] = {
+@@ -878,6 +951,7 @@
+ 		UBUS_METHOD("get",     rpc_handle_get,     get_policy),
+ 		UBUS_METHOD("unset",   rpc_handle_unset,   get_policy),
+ 		UBUS_METHOD("destroy", rpc_handle_destroy, &sid_policy),
++		UBUS_METHOD("login",   rpc_handle_login,   login_policy),
+ 	};
+ 
+ 	static struct ubus_object_type session_type =
+@@ -892,6 +966,10 @@
+ 
+ 	avl_init(&sessions, avl_strcmp, false, NULL);
+ 
++	// Add NULL-session for login-method
++	struct rpc_session *ses = rpc_session_create(0, "00000000000000000000000000000000");
++	rpc_session_grant(ses, NULL, "ubus", "session", "login");
++
+ 	return ubus_add_object(ctx, &obj);
+ }
+ 
+Index: rpcd-2013-09-05/uci.c
+===================================================================
+--- rpcd-2013-09-05.orig/uci.c	2013-09-05 17:07:58.802329670 +0200
++++ rpcd-2013-09-05/uci.c	2013-09-05 17:07:58.798329669 +0200
+@@ -18,6 +18,7 @@
+ 
+ #include <rpcd/uci.h>
+ #include <rpcd/session.h>
++#include <unistd.h>
+ 
+ static struct blob_buf buf;
+ static struct uci_context *cursor;
+@@ -707,7 +708,7 @@
+ 	uci_load(cursor, ptr.package, &p);
+ 
+ 	if (!p)
+-		goto out;
++		return rpc_uci_status();
+ 
+ 	if (tb[RPC_S_SECTION])
+ 	{
+@@ -732,11 +733,43 @@
+ 	}
+ 
+ 	uci_save(cursor, p);
+-
+-out:
++	uci_commit(cursor, &p, true);
+ 	if (p)
+ 		uci_unload(cursor, p);
+ 
++	rem = cursor->err;
++
++	struct uci_ptr aptr = {
++		.package = "rpcd",
++		.section = blobmsg_get_string(tb[RPC_C_CONFIG]),
++		.option = "exec"
++	};
++
++	struct uci_package *ap = NULL;
++	uci_load(cursor, aptr.package, &ap);
++	if (!uci_lookup_ptr(cursor, &aptr, NULL, false)
++			&& (aptr.flags & UCI_LOOKUP_COMPLETE)
++			&& aptr.last->type == UCI_TYPE_OPTION
++			&& aptr.o->type == UCI_TYPE_LIST) {
++		struct uci_element *e;
++		char buf[1024], *saveptr, *argv[32], **argvp = argv;
++		uci_foreach_element(&aptr.o->v.list, e) {
++			strncpy(buf, e->name, sizeof(buf) - 1);
++			*argvp++ = strtok_r(buf, " ", &saveptr);
++			while ((*argvp++ = strtok_r(NULL, " ", &saveptr)));
++			argvp[-1] = NULL;
++
++			if (!vfork()) {
++				execvp(argv[0], argv);
++				_exit(128);
++			}
++		}
++	}
++
++	if (ap)
++		uci_unload(cursor, ap);
++
++	cursor->err = rem;
+ 	return rpc_uci_status();
+ }
+ 

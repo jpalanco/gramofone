@@ -1,0 +1,13 @@
+Index: u-boot-2006-04-06-1725/include/configs/db12x.h
+===================================================================
+--- u-boot-2006-04-06-1725.orig/include/configs/db12x.h
++++ u-boot-2006-04-06-1725/include/configs/db12x.h
+@@ -13,7 +13,7 @@
+ 
+ #include <configs/ar7240.h>
+ 
+-#define CONFIG_MAX_FLASH	0x3D0000
++#define CONFIG_MAX_FLASH	0xFC0000
+ 
+ #ifndef FLASH_SIZE
+ #define FLASH_SIZE		8

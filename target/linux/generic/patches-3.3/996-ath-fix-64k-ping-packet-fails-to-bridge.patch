@@ -1,0 +1,13 @@
+Index: linux-3.3.8/net/ipv4/ip_fragment.c
+===================================================================
+--- linux-3.3.8.orig/net/ipv4/ip_fragment.c	2013-06-06 17:22:03.837708910 +0800
++++ linux-3.3.8/net/ipv4/ip_fragment.c	2013-06-06 17:22:35.694241410 +0800
+@@ -831,7 +831,7 @@
+ 	 * even the most extreme cases without allowing an attacker to
+ 	 * measurably harm machine performance.
+ 	 */
+-	net->ipv4.frags.high_thresh = 256 * 1024;
++	net->ipv4.frags.high_thresh = (256 + 128) * 1024;
+ 	net->ipv4.frags.low_thresh = 192 * 1024;
+ 	/*
+ 	 * Important NOTE! Fragment queue must be destroyed before MSL expires.

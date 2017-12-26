@@ -1,0 +1,25 @@
+Index: mopidy-0.14.2/setup.py
+===================================================================
+--- mopidy-0.14.2.orig/setup.py	2013-07-01 11:50:29.000000000 +0200
++++ mopidy-0.14.2/setup.py	2013-07-17 19:03:54.749422592 +0200
+@@ -2,6 +2,12 @@
+ 
+ import re
+ 
++try:
++    import setuptools
++except ImportError:
++    from ez_setup import use_setuptools
++    use_setuptools()
++
+ from setuptools import setup, find_packages
+ 
+ 
+@@ -27,7 +33,6 @@
+     include_package_data=True,
+     install_requires=[
+         'setuptools',
+-        'Pykka >= 1.1',
+     ],
+     extras_require={
+         'spotify': ['pyspotify >= 1.9, < 2'],

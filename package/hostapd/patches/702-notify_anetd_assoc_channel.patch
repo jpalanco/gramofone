@@ -1,0 +1,113 @@
+--- a/wpa_supplicant/sme.c
++++ b/wpa_supplicant/sme.c
+@@ -941,24 +941,12 @@ static void sme_send_2040_bss_coex(struc
+ 	wpabuf_free(buf);
+ }
+ 
+-
+-/**
+- * enum wpas_band - Frequency band
+- * @WPAS_BAND_2GHZ: 2.4 GHz ISM band
+- * @WPAS_BAND_5GHZ: around 5 GHz band (4.9 - 5.7 GHz)
+- */
+-enum wpas_band {
+-	WPAS_BAND_2GHZ,
+-	WPAS_BAND_5GHZ,
+-	WPAS_BAND_INVALID
+-};
+-
+ /**
+  * freq_to_channel - Convert frequency into channel info
+  * @channel: Buffer for returning channel number
+  * Returns: Band (2 or 5 GHz)
+  */
+-static enum wpas_band freq_to_channel(int freq, u8 *channel)
++enum wpas_band freq_to_channel(int freq, u8 *channel)
+ {
+ 	enum wpas_band band = (freq <= 2484) ? WPAS_BAND_2GHZ : WPAS_BAND_5GHZ;
+ 	u8 chan = 0;
+--- a/wpa_supplicant/sme.h
++++ b/wpa_supplicant/sme.h
+@@ -110,4 +110,17 @@ static inline void sme_sched_obss_scan(s
+ 
+ #endif /* CONFIG_SME */
+ 
++/**
++ * enum wpas_band - Frequency band
++ * @WPAS_BAND_2GHZ: 2.4 GHz ISM band
++ * @WPAS_BAND_5GHZ: around 5 GHz band (4.9 - 5.7 GHz)
++ */
++enum wpas_band {
++	WPAS_BAND_2GHZ,
++	WPAS_BAND_5GHZ,
++	WPAS_BAND_INVALID
++};
++
++enum wpas_band freq_to_channel(int freq, u8 *channel);
++
+ #endif /* SME_H */
+--- a/wpa_supplicant/wpa_supplicant.c
++++ b/wpa_supplicant/wpa_supplicant.c
+@@ -12,6 +12,8 @@
+ 
+ #include "includes.h"
+ 
++#include <libubox/blobmsg_json.h>
++#include "libubus.h"
+ #include "common.h"
+ #include "crypto/random.h"
+ #include "crypto/sha1.h"
+@@ -107,6 +109,8 @@ extern int wpa_debug_show_keys;
+ extern int wpa_debug_timestamp;
+ extern struct wpa_driver_ops *wpa_drivers[];
+ 
++struct blob_buf b;
++
+ #ifdef MULTICALL
+ static int hostapd_stop(struct wpa_supplicant *wpa_s)
+ {
+@@ -1358,6 +1362,36 @@ void wpa_supplicant_associate(struct wpa
+ 				bss->ie_len);
+ #endif /* CONFIG_TDLS */
+ 
++	if(bss) {	
++		/* Notify anetd of channel change */
++		u8 assoc_channel;
++		enum wpas_band band;
++		int ubusres = UBUS_STATUS_OK;	
++		uint32_t anetid;
++		struct ubus_context *ubus_ctx;
++		ubus_ctx = ubus_connect(NULL);
++
++		band = freq_to_channel(bss->freq, &assoc_channel);
++		if(ubus_ctx) {
++			if((ubusres = ubus_lookup_id(ubus_ctx, "anet", &anetid)) !=
++					UBUS_STATUS_OK) {
++				wpa_msg(wpa_s, MSG_ERROR, "anet object not found");	
++			} else {
++				blob_buf_init(&b, 0);
++				blobmsg_add_u8(&b, "channel", assoc_channel);
++				blobmsg_add_u32(&b, "band", band);
++				wpa_msg(wpa_s, MSG_INFO, "Notifying anetd of new association"
++						" channel");
++				ubus_invoke(ubus_ctx, anetid, "set_assoc_channel", b.head, NULL,
++						0, 1);
++				blob_buf_free(&b);
++			}
++			ubus_free(ubus_ctx);
++		} else {
++			wpa_msg(wpa_s, MSG_ERROR, "failed to connect to ubus");
++		}
++	}
++
+ 	if ((wpa_s->drv_flags & WPA_DRIVER_FLAGS_SME) &&
+ 	    ssid->mode == IEEE80211_MODE_INFRA) {
+ 		sme_authenticate(wpa_s, bss, ssid);
+@@ -1373,6 +1407,7 @@ void wpa_supplicant_associate(struct wpa
+ 		wpa_msg(wpa_s, MSG_INFO, "Trying to associate with " MACSTR
+ 			" (SSID='%s' freq=%d MHz)", MAC2STR(bss->bssid),
+ 			wpa_ssid_txt(bss->ssid, bss->ssid_len), bss->freq);
++
+ 		bssid_changed = !is_zero_ether_addr(wpa_s->bssid);
+ 		os_memset(wpa_s->bssid, 0, ETH_ALEN);
+ 		os_memcpy(wpa_s->pending_bssid, bss->bssid, ETH_ALEN);

@@ -1,0 +1,84 @@
+Index: u-boot-2006-04-06-1725/net/rsa/rsa.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/rsa/rsa.c
++++ u-boot-2006-04-06-1725/net/rsa/rsa.c
+@@ -133,28 +133,20 @@ static DER_key *CH_load_pem_key(void)
+ 	size_t filesize;
+ 	int size;
+ 	int i;
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	if ((ret = (DER_key *)malloc(sizeof(DER_key))) == NULL)
+ 		return NULL;
+ 	buffer = public_key;
+-for (i = 0; i < 64; i++)
+-{
+-	printf("%c", public_key[i]);
+-}
+-	printf("\n%s:%s[%d]\n", __FILE__, __func__, __LINE__);
++	filesize = sizeof(public_key);
+ 
+ 	p = (char *)buffer;
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	while ((*p != '\n') && (*p != '\0'))
+ 		p++;
+ 	if (*p == '\0') {
+ 		free(ret);
+ 		return NULL;
+ 	}
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	p++;
+ 	b64 = t = p;
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	while((p - b64) <= filesize) {
+ 		if ((*p == '-')) {
+ 			break;
+@@ -165,10 +157,8 @@ for (i = 0; i < 64; i++)
+ 		p++;
+ 	}
+ 	*t = '\0';
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	size = B64_decode(b64, key, strlen(b64), 1024);
+ 	if (size < 0) {
+-		printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 		free(buffer);
+ 		free(ret);
+ 		return NULL;
+@@ -177,11 +167,6 @@ for (i = 0; i < 64; i++)
+ 	ret->buffer = (char *)malloc(size);
+ 	ret->size = size;
+ 	memcpy((void *)ret->buffer, (void *)key, size);
+-	for (i = 0; i < ret->size; i++)
+-{
+-	printf("%02x ", ret->buffer[i]);
+-}
+-	printf("\n%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	return ret;
+ }
+ 
+@@ -218,26 +203,18 @@ static int asn1_get_public_key(const uin
+ 
+ 	pub_len = 3;
+ 	mod_len = len - 37;
+-	printf("%s:%s[%d]%d\n", __FILE__, __func__, __LINE__, len);
+-	for(i = 0; i < len; i++) {
+-		printf("%02x ", buf[i]);
+-	}
+-
+ 
+ 	if (buf[0] != 0x30) {
+ 		return -1;
+ 	}
+ 
+-	printf("\n%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	pub_exp = (uint8_t *)malloc(3);
+ 	modulus = (uint8_t *)malloc(mod_len);
+ 	memcpy(modulus, buf + 32 , mod_len);
+ 	memcpy(pub_exp, buf + 34 + mod_len, 3); 
+ 	if (mod_len <= 0 || pub_len <= 0 )
+ 		return -1;
+-	printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 	CH_pub_key_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
+-	printf("%s:%s[%d]\n", __FILE__, __func__, __LINE__);
+ 
+ 	free(modulus);
+ 	free(pub_exp);

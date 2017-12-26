@@ -1,0 +1,31 @@
+--- a/drivers/net/wireless/ath/ath9k/ar9003_phy.h
++++ b/drivers/net/wireless/ath/ath9k/ar9003_phy.h
+@@ -341,7 +341,7 @@
+ #define AR_PHY_CCA_NOM_VAL_9300_5GHZ          -115
+ #define AR_PHY_CCA_MIN_GOOD_VAL_9300_2GHZ     -125
+ #define AR_PHY_CCA_MIN_GOOD_VAL_9300_5GHZ     -125
+-#define AR_PHY_CCA_MAX_GOOD_VAL_9300_2GHZ     -95
++#define AR_PHY_CCA_MAX_GOOD_VAL_9300_2GHZ     -60
+ #define AR_PHY_CCA_MAX_GOOD_VAL_9300_5GHZ     -100
+ 
+ #define AR_PHY_CCA_NOM_VAL_9462_2GHZ          -127
+--- a/drivers/net/wireless/ath/ath9k/ar9340_initvals.h
++++ b/drivers/net/wireless/ath/ath9k/ar9340_initvals.h
+@@ -235,7 +235,7 @@ static const u32 ar9340_1p0_baseband_pos
+ 	{0x00009e14, 0x37b95d5e, 0x37b9605e, 0x3379605e, 0x33795d5e},
+ 	{0x00009e18, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+ 	{0x00009e1c, 0x0001cf9c, 0x0001cf9c, 0x00021f9c, 0x00021f9c},
+-	{0x00009e20, 0x000003b5, 0x000003b5, 0x000003ce, 0x000003ce},
++	{0x00009e20, 0x000003b5, 0x000003b5, 0x000003c2, 0x000003c2},
+ 	{0x00009e2c, 0x0000001c, 0x0000001c, 0x00000021, 0x00000021},
+ 	{0x00009e3c, 0xcf946220, 0xcf946220, 0xcf946222, 0xcf946222},
+ 	{0x00009e44, 0x02321e27, 0x02321e27, 0x02291e27, 0x02291e27},
+@@ -265,7 +265,7 @@ static const u32 ar9340_1p0_baseband_pos
+ 	{0x0000ae04, 0x001c0000, 0x001c0000, 0x001c0000, 0x001c0000},
+ 	{0x0000ae18, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+ 	{0x0000ae1c, 0x0000019c, 0x0000019c, 0x0000019c, 0x0000019c},
+-	{0x0000ae20, 0x000001b5, 0x000001b5, 0x000001ce, 0x000001ce},
++	{0x0000ae20, 0x000001b5, 0x000001b5, 0x000001c2, 0x000001c2},
+ 	{0x0000b284, 0x00000000, 0x00000000, 0x00000150, 0x00000150},
+ };
+ 

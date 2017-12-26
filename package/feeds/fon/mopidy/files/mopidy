@@ -1,0 +1,32 @@
+config 'section' 'audio'
+	option mixer 'autoaudiomixer'
+	option output 'alsasink'
+	option mute 'hardware'
+	option volume 'software'
+
+config 'section' 'loglevels'
+
+config 'frontend' 'scrobbler'
+	option 'enabled' 'False'
+
+config 'frontend' 'rpc'
+	option 'enabled' 'True'
+	option 'hostname' 0.0.0.0
+	option 'port' 6688
+	option 'user' 'mopidy'
+	option 'password' '5jn39xJnZ7EPuQb05TD9'
+
+config 'frontend' 'mpd'
+	option 'enabled' 'True'
+	option 'hostname' 0.0.0.0
+
+config 'backend' 'spotify'
+	option 'enabled' 'False'
+	option 'username' ''
+	option 'password' ''
+
+config 'backend' 'wahwah'
+	option 'enabled' 'True'
+	option 'host' 'www.senzari.com'
+	option 'facebook_id' '305500226127280'
+	option 'allow_unregistered' 'False'

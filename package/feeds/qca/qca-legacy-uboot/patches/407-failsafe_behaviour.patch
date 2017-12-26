@@ -1,0 +1,115 @@
+Index: u-boot-2006-04-06-1725/net/net.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/net.c
++++ u-boot-2006-04-06-1725/net/net.c
+@@ -98,6 +98,7 @@
+ unsigned long long ticks_sq = CFG_HZ/4;
+ static int https_running = 0;
+ int httpd_upload_complete = 0;
++int httpd_signature_check_success = 0;
+ unsigned char *httpd_upload_data = 0;
+ extern int upload_running;
+ void NetReceiveHttpd(volatile uchar * inpkt, int len);
+@@ -1847,9 +1848,8 @@ ushort getenv_VLAN(char *var)
+ }
+ 
+ #if defined(CONFIG_CMD_HTTPD)
+-int do_http_upgrade(const unsigned char *data, const ulong size)
++int do_http_signature_check(const unsigned char *data, const ulong size)
+ {
+-	char buf[128];
+ 	int ret;
+ 
+ 	if (size - 516 > CONFIG_MAX_FLASH)
+@@ -1858,14 +1858,8 @@ int do_http_upgrade(const unsigned char
+ 		return -1;
+ 	}
+ 	
+-	ret = rsa_check_signature(&data[4], 0x200, &data[516], size - 516);
+-	if(!ret)
++	if(rsa_check_signature(&data[4], 0x200, &data[516], size - 516))
+ 	{
+-		/* write the image to the flash */
+-		puts("http ugrade ...\n");
+-		sprintf(buf, "era 0x9f020000 +0x%x; cp.b 0x80060204 0x9f020000 0x%x", size - 516, size - 516);
+-		run_command(buf, 0);
+-	} else {
+ 		puts("rsa verification failed: Abort http upgrade\n");
+ 		return -1;
+ 	}
+@@ -1873,6 +1867,15 @@ int do_http_upgrade(const unsigned char
+ 	return 0;
+ }
+ 
++int do_http_upgrade(const unsigned char *data, const ulong size)
++{
++	char buf[128];
++	puts("http ugrade ...\n");
++	sprintf(buf, "era 0x9f020000 +0x%x; cp.b 0x80060204 0x9f020000 0x%x", size - 516, size - 516);
++	run_command(buf, 0);
++	return 0;
++}
++
+ static int factory_default = 0;
+ static int led = 1;
+ int do_http_progress(const int state)
+@@ -2145,8 +2148,9 @@ restart:
+ 			NetBootFileXferSize);
+ 		eth_halt();
+ 		do_http_progress(HTTP_PROGRESS_UPLOAD_READY);
+-		if(do_http_upgrade(&httpd_upload_data[0], NetBootFileXferSize) == 0) {
++		if(httpd_signature_check_success) {
+ 			do_http_progress(HTTP_PROGRESS_UGRADE_READY);
++			do_http_upgrade(&httpd_upload_data[0], NetBootFileXferSize);
+ 			udelay(1000 * 10);
+ 			do_reset (0,0,0,0);
+ 			return 0;
+Index: u-boot-2006-04-06-1725/net/uip-0.9/fsdata.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/uip-0.9/fsdata.c
++++ u-boot-2006-04-06-1725/net/uip-0.9/fsdata.c
+@@ -67,7 +67,7 @@ static const char data_fail_html[] =
+ "\t\t<h1>Fonera Failsafe UI</h1>\n"
+ "\t\t<h2>Flashing failed</h2>\n"
+ "\t\tERROR - the image you uploaded failed to pass verification.<br>\n"
+-"\t\tPlease make sure to use an official update provided by http://lantiq.com/\n"
++"\t\tPlease make sure to use an official update provided by Fon\n"
+ "\t</div>\n"
+ "</body>\n"
+ "</html>\n";
+Index: u-boot-2006-04-06-1725/net/uip-0.9/httpd.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/net/uip-0.9/httpd.c
++++ u-boot-2006-04-06-1725/net/uip-0.9/httpd.c
+@@ -14,13 +14,16 @@
+ #define PRINTLN(x) printf("%s\n", x)
+ 
+ extern unsigned long do_http_tmp_address(void);
++extern int do_http_signature_check(const unsigned char *data, const ulong size);
+ 
+ struct httpd_state *hs;
+ 
+ extern const struct fsdata_file file_index_html;
+ extern const struct fsdata_file file_404_html;
+-extern const struct fsdata_file file_flash_html;
++extern const struct fsdata_file file_flashing_html;
++extern const struct fsdata_file file_fail_html;
+ extern int httpd_upload_complete;
++extern int httpd_signature_check_success;
+ extern unsigned char *httpd_upload_data;
+ unsigned char *upload_data;
+ extern ulong		NetBootFileXferSize;
+@@ -269,7 +272,12 @@ out:
+ 				{
+ 					upload_running = 1;
+ 					NetBootFileXferSize = hs->upload_total;
+-					fs_open(file_flash_html.name, &fsfile);
++					httpd_signature_check_success =
++						(!do_http_signature_check(&httpd_upload_data[0], NetBootFileXferSize))?1:0;
++					if(httpd_signature_check_success)
++						fs_open(file_flashing_html.name, &fsfile);
++					else
++						fs_open(file_fail_html.name, &fsfile);
+ 					hs->script = 0;
+ 					hs->state = HTTP_FILE;
+ 					hs->dataptr = fsfile.data;

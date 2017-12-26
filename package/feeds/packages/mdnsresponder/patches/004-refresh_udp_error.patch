@@ -1,0 +1,15 @@
+--- a/mDNSPosix/mDNSPosix.c
++++ b/mDNSPosix/mDNSPosix.c
+@@ -321,8 +321,12 @@ mDNSexport mStatus mDNSPlatformSendUDP(c
+ 			{
+ 			MessageCount++;
+ 			if (thisIntf)
++			{
+ 				LogMsg("mDNSPlatformSendUDP got error %d (%s) sending packet to %#a on interface %#a/%s/%d",
+ 							  errno, strerror(errno), dst, &thisIntf->coreIntf.ip, thisIntf->intfName, thisIntf->index);
++				LogMsg("mDNSPlatformSendUDP:: calling RefreshInterfaces");
++		                mDNSPlatformPosixRefreshInterfaceList(m);
++			}		
+ 			else
+ 				LogMsg("mDNSPlatformSendUDP got error %d (%s) sending packet to %#a", errno, strerror(errno), dst);
+ 			}

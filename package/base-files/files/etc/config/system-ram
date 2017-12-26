@@ -1,0 +1,13 @@
+config system
+	option hostname	fonera
+	option timezone	UTC
+
+config button
+	option button 'wps'
+	option action 'pressed'
+	option handler '/bin/ubus call mfgd wps_pressed'
+
+config button
+	option button 'wps'
+	option action 'released'
+	option handler '/bin/ubus call mfgd wps_reset'

@@ -1,0 +1,61 @@
+--- a/mDNSCore/mDNS.c
++++ b/mDNSCore/mDNS.c
+@@ -8339,9 +8339,9 @@ mDNSlocal void AdvertiseInterface(mDNS *
+ 	if (!primary) primary = set; // If no existing advertised interface, this new NetworkInterfaceInfo becomes our new primary
+ 
+ 	// Send dynamic update for non-linklocal IPv4 Addresses
+-	mDNS_SetupResourceRecord(&set->RR_A,     mDNSNULL, set->InterfaceID, kDNSType_A,     kHostNameTTL, kDNSRecordTypeUnique,      mDNS_HostNameCallback, set);
+-	mDNS_SetupResourceRecord(&set->RR_PTR,   mDNSNULL, set->InterfaceID, kDNSType_PTR,   kHostNameTTL, kDNSRecordTypeKnownUnique, mDNSNULL, mDNSNULL);
+-	mDNS_SetupResourceRecord(&set->RR_HINFO, mDNSNULL, set->InterfaceID, kDNSType_HINFO, kHostNameTTL, kDNSRecordTypeUnique,      mDNSNULL, mDNSNULL);
++	mDNS_SetupResourceRecord(&set->RR_A,     mDNSNULL, set->AdvertiseOnAny ? mDNSInterface_Any : set->InterfaceID, kDNSType_A,     kHostNameTTL, kDNSRecordTypeUnique,      mDNS_HostNameCallback, set);
++	mDNS_SetupResourceRecord(&set->RR_PTR,   mDNSNULL, set->AdvertiseOnAny ? mDNSInterface_Any : set->InterfaceID, kDNSType_PTR,   kHostNameTTL, kDNSRecordTypeKnownUnique, mDNSNULL, mDNSNULL);
++	mDNS_SetupResourceRecord(&set->RR_HINFO, mDNSNULL, set->AdvertiseOnAny ? mDNSInterface_Any : set->InterfaceID, kDNSType_HINFO, kHostNameTTL, kDNSRecordTypeUnique,      mDNSNULL, mDNSNULL);
+ 
+ #if ANSWER_REMOTE_HOSTNAME_QUERIES
+ 	set->RR_A    .AllowRemoteQuery  = mDNStrue;
+--- a/mDNSCore/mDNSEmbeddedAPI.h
++++ b/mDNSCore/mDNSEmbeddedAPI.h
+@@ -2505,6 +2505,7 @@ struct NetworkInterfaceInfo_struct
+ 	mDNSu8          Advertise;			// False if you are only searching on this interface
+ 	mDNSu8          McastTxRx;			// Send/Receive multicast on this { InterfaceID, address family } ?
+ 	mDNSu8          NetWake;			// Set if Wake-On-Magic-Packet is enabled on this interface
++	mDNSu8          AdvertiseOnAny;		// Set to true to adverstise interface on any other
+ 	};
+ 
+ typedef struct SearchListElem
+--- a/mDNSPosix/mDNSPosix.c
++++ b/mDNSPosix/mDNSPosix.c
+@@ -941,8 +941,32 @@ mDNSlocal int SetupOneInterface(mDNS *co
+ 		//LogMsg("SetupOneInterface: %#a %#a",  &intf->coreIntf.ip,  &intf->coreIntf.mask);
+ 		strncpy(intf->coreIntf.ifname, intfName, sizeof(intf->coreIntf.ifname));
+ 		intf->coreIntf.ifname[sizeof(intf->coreIntf.ifname)-1] = 0;
+-		intf->coreIntf.Advertise = m->AdvertiseLocalAddresses;
+ 		intf->coreIntf.McastTxRx = mDNStrue;
++		/* If no specific interfaces has been set work as usual  */
++		/* All interfaces are advertised by default. Each one advertise its own IP address */
++		intf->coreIntf.Advertise = m->AdvertiseLocalAddresses; 
++		intf->coreIntf.AdvertiseOnAny = mDNSfalse;
++
++		if (m->interfaces[0]) {
++			if (!strcmp(intfName, m->interfaces[0])) {
++				/* Advertise first specified interface ip address on any of the interfaces */
++				intf->coreIntf.Advertise = mDNStrue;
++				intf->coreIntf.AdvertiseOnAny = mDNStrue;
++			} else {
++				/* Rest of interfaces ip address are not to be advertised */
++				intf->coreIntf.Advertise = mDNSfalse;
++			}
++		}
++
++		/* Don't advertise link local addresses in any case 
++		 * There may be a better way to avoid advertising the link local
++		 * address on interfaces with more than one address but there
++		 * is no more time at the moment for further investigation. Have a
++		 * look at the InterfaceActive member of the
++		 * NetworInterfaceInfo type */
++		if (mDNSAddressIsLinkLocal(&intf->coreIntf.ip)) {
++			intf->coreIntf.Advertise = mDNSfalse;
++		}
+ 
+ 		// Set up the extra fields in PosixNetworkInterface.
+ 		assert(intf->intfName != NULL);         // intf->intfName already set up above

@@ -1,0 +1,18 @@
+Index: u-boot-2006-04-06-1725/cpu/mips/ar7240/ag934x.c
+===================================================================
+--- u-boot-2006-04-06-1725.orig/cpu/mips/ar7240/ag934x.c
++++ u-boot-2006-04-06-1725/cpu/mips/ar7240/ag934x.c
+@@ -332,7 +332,12 @@ static void ag7240_hw_start(ag7240_mac_t
+      * and Multi/Broad cast frames. 
+      */
+ 
+-    ag7240_reg_wr(mac, AG7240_MAC_FIFO_CFG_5, 0x7eccf);
++/* patch applied from similar in
++ * http://code.google.com/p/wr703n-uboot-with-web-failsafe/
++ * in order to receive arp broadcast frames
++ */
++//    ag7240_reg_wr(mac, AG7240_MAC_FIFO_CFG_5, 0x7eccf);
++    ag7240_reg_wr(mac, AG7240_MAC_FIFO_CFG_5, 0x66b82);
+ 
+     ag7240_reg_wr(mac, AG7240_MAC_FIFO_CFG_3, 0x1f00140);
+ 

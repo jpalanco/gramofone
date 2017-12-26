@@ -1,0 +1,22 @@
+diff -Nur hostapd-20130405/wpa_supplicant/Makefile hostapd-20130405.new/wpa_supplicant/Makefile
+--- hostapd-20130405/wpa_supplicant/Makefile	2013-07-26 10:58:04.920812918 +0200
++++ hostapd-20130405.new/wpa_supplicant/Makefile	2013-07-26 11:01:30.110821409 +0200
+@@ -17,6 +17,8 @@
+ CFLAGS += -DMULTICALL
+ endif
+ 
++CFLAGS += -fPIC
++
+ -include .config
+ -include $(if $(MULTICALL),../hostapd/.config)
+ 
+@@ -1576,6 +1578,9 @@
+ 	$(Q)$(LDO) $(LDFLAGS) -o wpa_cli $(OBJS_c) $(LIBS_c)
+ 	@$(E) "  LD " $@
+ 
++libwpa_ctrl.so: ../src/common/wpa_ctrl.o ../src/utils/os_$(CONFIG_OS).o
++	$(CC) $(CFLAGS) $(LDFLAGS) -shared -o libwpa_ctrl.so ../src/common/wpa_ctrl.o ../src/utils/os_$(CONFIG_OS).o
++
+ link_test: $(OBJS) $(OBJS_h) tests/link_test.o
+ 	$(Q)$(LDO) $(LDFLAGS) -o link_test $(OBJS) $(OBJS_h) tests/link_test.o $(LIBS)
+ 	@$(E) "  LD " $@

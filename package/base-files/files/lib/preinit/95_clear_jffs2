@@ -1,0 +1,12 @@
+#!/bin/sh
+
+clear_jffs2() {
+# if jffs2 filesystem is mounted but /etc/firstboot still exists
+# it means firstboot was not completed. In that case we clear all
+# jffs2 to force a fresh firstboot from scratch
+    if ! jffs2_not_mounted && [ ! -e /etc/firstboot_done ]; then
+	echo "firstboot was not fully completed. Resetting to defaults..."
+	/sbin/firstboot
+    fi
+}
+boot_hook_add preinit_main clear_jffs2

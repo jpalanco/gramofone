@@ -1,0 +1,13 @@
+#!/bin/sh
+# Copyright (C) 2006-2010 OpenWrt.org
+
+
+check_reset_factory() {
+	factory=`cat /proc/cmdline  | grep reset_factory`
+	[ -z "$factory" ] && return 1
+	echo "resetting to factory defaults"
+	jffs2_mark_erase rootfs_data
+}
+
+boot_hook_add preinit_mount_root check_reset_factory
+

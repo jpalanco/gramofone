@@ -1,0 +1,22 @@
+--- mopidy-0.17.0a1.orig/mopidy/core/playback.py	2013-11-20 11:58:47.000000000 +0100
++++ mopidy-0.17.0a1/mopidy/core/pplayback.py	2013-11-22 17:05:55.491268245 +0100
+@@ -115,7 +115,7 @@
+             return self._mute
+ 
+     def set_mute(self, value):
+-        value = bool(value)
++        value = bool(self.parse_boolean(value))
+         if self.audio:
+             self.audio.set_mute(value)
+         else:
+@@ -124,6 +124,11 @@
+ 
+         self._trigger_mute_changed(value)
+ 
++    def parse_boolean(self,value):
++        if str(value).lower().find("false") >= 0:
++            return 0
++        return value
++
+     mute = property(get_mute, set_mute)
+     """Mute state as a :class:`True` if muted, :class:`False` otherwise"""

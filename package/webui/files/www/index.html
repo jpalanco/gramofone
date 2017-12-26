@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+		<title>Gramofon - </title>
+
+		<link rel="shortcut icon"  href="images/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=-1, maximum-scale=-1" />
+
+		<!-- CSS -->
+		<link rel="stylesheet" type="text/css" href="css/style.css" media="screen"/>
+
+		<script type="text/javascript">
+			if (/*@cc_on!@*/false) {
+				document.documentElement.className += ' ie';
+			}
+		</script>
+
+		<!-- SCRIPTS -->
+
+		<script src="js/jquery-1.10.2.min.js" type="text/javascript"></script>
+		<script src="js/jquery.cookie.js" type="text/javascript"></script>
+		<script src="js/api-core.js" type="text/javascript"></script>
+		<script src="js/api-rpc.js" type="text/javascript"></script>
+		<script src="js/api-types.js" type="text/javascript"></script>
+		<script src="js/functions.js" type="text/javascript"></script>
+		<script src="js/plugins.js" type="text/javascript"></script>
+
+		<script type="text/javascript">
+			document.createElement('header');
+			document.createElement('nav');
+			document.createElement('article');
+			document.createElement('section');
+			document.createElement('footer');
+		</script>
+
+		<!--[if IE]><script src="js/html5.js" type="text/javascript></script><![endif]-->
+
+	</head>
+
+	<body onload="get_status();" onbeforeunload="wuapi_abort_calls();">
+
+		<div id="fade" class="overlay">
+			<!-- Reserved for Fade -->
+		</div>
+		<div class="modal_complete">
+			<div id="light" class="modal">
+				<div id="loadingtext">
+					<!-- Reserved for Loading Text -->
+				</div>
+				<img src="images/loading.gif" alt="loading" />
+			</div>
+		</div>
+
+		<div class="container">
+
+			<header class="header">
+				<div class="wrap">
+					<div class="logoGramofon">
+						<!-- Reserved for Gramofon Logo -->
+					</div>
+					<div id="dropmenu" class="right">
+						<div id="gramoname" class="status">
+							<!-- Reserved for Gramofon Name -->
+						</div>
+						<div class="dropdown">
+							<!-- Reserved for Dropdown Menu Button -->
+						</div>
+						<div class="down">
+							<a href="javascript:void(0)" onclick="show_homepage()">Home</a>
+							<a href="javascript:void(0)" onclick="show_advancedpage()">Advanced</a>
+							<a href="javascript:void(0)" onclick="show_gramonamepage()">Gramofon name</a>
+							<a href="javascript:void(0)" onclick="logout_user();">Logout</a>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<!--  =======================================================================  -->
+			<!--  =                              Login Div                              =  -->
+			<!--  =======================================================================  -->
+			<div id="loginpage" class="wrap displayNone">
+				<div class="main content">
+
+					<div class="login">
+						<form action="javascript:void(0)">
+							<fieldset>
+								<div class="inputCell">
+									<input type="password" id="password" name="password" placeholder="Password" class="" />
+								</div>
+							</fieldset>
+
+							<fieldset class="buttons">
+								<button id="loginbtn" type="button" onclick="login_user(); return true;">
+									Login
+								</button>
+							</fieldset>
+						</form>
+					</div>
+
+				</div>
+			</div>
+
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                             Submenu Div                             =  -->
+			<!--  =======================================================================  -->
+			<div id="submenu" class="wrap subMenu displayNone">
+				<h2>Gramofon Internet Connection Type:</h2>
+				<a id="cablelink" href="javascript:void(0)" onclick="show_homepage();">Cable</a>
+				<a id="wifilink" href="javascript:void(0)" onclick="show_homepage();">WiFi</a>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                              Status Div                             =  -->
+			<!--  =======================================================================  -->
+			<div id="statuspage" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<div class="stepsBox">
+							<img id="connectionscheme" src="" alt="Connection Scheme" />
+						</div>
+
+						<div id="conectedto">
+							<!-- Current Connection Name -->
+						</div>
+
+						<div id="ledstat">
+							<!-- Current LED Status -->
+						</div>
+
+						<form action="javascript:void(0)">
+							<fieldset>
+								<label for="privssid">Gramofon WiFi Name</label>
+								<span class="inputCell">
+									<input tabindex="-1" type="text" id="privssid" value="" readonly class="readonly privssid" />
+								</span>
+							</fieldset>
+
+							<fieldset class="privpassfield">
+								<label for="privpass">Gramofon WiFi Password</label>
+								<div class="inputCell">
+									<input tabindex="-1" type="text" id="privpass" value="" readonly class="readonly privpass" />
+								</div>
+							</fieldset>
+
+							<fieldset class="buttons">
+								<button id="wizardbutton" type="button" class="left"></button>
+								<button id="modeswizardbutton" type="button" class="right displayNone" onclick="show_wizard_mode();">
+									WiFi settings
+								</button>
+							</fieldset>
+						</form>
+
+					</div>
+				</div>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                             SetCable Div                            =  -->
+			<!--  =======================================================================  -->
+			<div id="setcablewizzard" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<div class="stepsBox">
+							<img src="images/cable_orange.png" alt="Cable Connection Scheme" />
+						</div>
+
+						<h2>WiFi Settings</h2>
+
+						<form action="javascript:void(0)">
+							<div class="error displayNone">
+								<!-- Reserved for Errors -->
+							</div>
+
+							<fieldset>
+								<label for="privssidc">Gramofon WiFi Name</label>
+								<div class="inputCell">
+									<input type="text" id="privssidc" class="privssid" />
+								</div>
+							</fieldset>
+
+							<fieldset>
+								<label for="privpassc">Gramofon WiFi Password</label>
+								<div class="inputCell">
+									<input type="text" id="privpassc" class="privpass" />
+									<small> After clicking Save &amp; Aplly, you need to connect again to the new Gramofon WiFi name and / or use the new password </small>
+								</div>
+							</fieldset>
+
+							<fieldset class="buttons">
+								<a href="javascript:void(0)" class="cancel left">Cancel</a>
+								<a href="javascript:void(0)" id="bttoncablewizzard" onclick="set_wifipriv_settings();" class="right">Save &amp; Apply</a>
+							</fieldset>
+						</form>
+
+					</div>
+				</div>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                             SetWifi Div                             =  -->
+			<!--  =======================================================================  -->
+			<div id="setwifiwizzard" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<!--  Step 1: Select SSID  -->
+						<div id="setwifiwizzardssid">
+
+							<div class="stepsBox">
+								<img src="images/wifi_a_gris.png" alt="" />
+							</div>
+
+							<h2>Select the wireless network the gramofon is going to join</h2>
+
+							<form id="wcliform" action="javascript:void(0)">
+								<div class="error displayNone">
+									<!-- Reserved for errors -->
+								</div>
+								<fieldset>
+									<label for="selectSsid">Home WiFi Name</label>
+									<div class="inputCell">
+										<select id="selectSsid" onchange="set_wifi_ssid();">
+											<option value = "">Scanning for WiFis</option>
+										</select>
+										<a href="javascript:void(0);" onclick="scan_close_ssids();" > <img src="images/refresh.png" class="right" alt="rescan" /> </a>
+									</div>
+								</fieldset>
+
+								<fieldset id="wclipassf">
+
+								</fieldset>
+
+								<fieldset class="buttons">
+									<a href="#" class="cancel left">Cancel</a>
+									<a href="#" id="ssidbutton">Save &amp; Apply</a>
+								</fieldset>
+							</form>
+
+						</div>
+
+						<!--  Wizzard 1 Success -->
+						<div id="setwifiwizzardsuccess" class="displayNone">
+
+							<h2 class="successMsg">Congratulations!</h2>
+
+							<p class="msgnewssid"></p>
+
+							<form action="javascript:void(0)">
+								<fieldset class="buttons">
+									<a href="javascript:void(0)" id="finishb" onclick="window.location.reload();">Finish</a>
+								</fieldset>
+							</form>
+
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div id="setwifiwizzard2" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<!--  Step 1: Choice WifiMode  -->
+						<div id="setwifiwizzardmode">
+							<div class="stepsBox">
+								<img src="images/wifi_solo_a_naranja.png" alt="" />
+							</div>
+
+							<h2>WiFi Settings</h2>
+
+							<p>
+								Do you want to clone your broadband signal or to have a separte Gramofon WiFi signal?
+							</p>
+
+							<form action="javascript:void(0)">
+								<fieldset class="buttons">
+									<a href="#" class="clone left">Clone</a>
+									<a href="#" class="separate right">Separate WiFi</a>
+								</fieldset>
+							</form>
+
+						</div>
+
+						<!--  Step 2-a: WifiMode Clone-->
+						<div id="setwifiwizzardclone" class="displayNone">
+
+							<form action="javascript:void(0)">
+								<fieldset id="wificlonessid">
+									<label for="ssidclone">Gramofon WiFi Name</label>
+									<div class="inputCell">
+										<input type="text" id="ssidclone" readonly class="privssid readonly" />
+									</div>
+								</fieldset>
+								<fieldset id="wificlonepass" class ="displayNone">
+									<label for="passwordclone">Gramofon WiFi Password</label>
+									<div class="inputCell">
+										<input type="text" id="passwordclone" readonly class="privpass readonly" />
+									</div>
+									<small id="wclonewarning"> <!-- Reserved for clone mode warning --> </small>
+								</fieldset>
+
+								<fieldset class="buttons">
+									<a href="#" class="cancel left">Cancel</a>
+									<a href="#" id="bttonclonewifiwizzard" class="next right">Next</a>
+								</fieldset>
+							</form>
+
+						</div>
+
+						<!--  Step 2-b: WifiMode Separate -->
+						<div id="setwifiwizzardseparate" class="displayNone">
+
+							<form action="javascript:void(0)">
+								<div class="error displayNone">
+									<!-- Reserved for errors -->
+								</div>
+								<fieldset>
+									<label for="privssidw">Gramofon WiFi Name</label>
+									<div class="inputCell">
+										<input type="text" id="privssidw" class="privssid" />
+									</div>
+								</fieldset>
+
+								<fieldset>
+									<label for="privpassw">Gramofon WiFi Password</label>
+									<div class="inputCell">
+										<input type="text" id="privpassw" class="privpass" />
+									</div>
+								</fieldset>
+
+								<fieldset class="buttons">
+									<a href="#" class="cancel left">Cancel</a>
+									<a href="#" id="bttonwifiwizzard" class="next right">Next</a>
+								</fieldset>
+							</form>
+
+						</div>
+
+						<!--  Step 3: Confirm -->
+						<div id="setwifiwizzardconfirm" class="displayNone">
+
+							<div class="stepsBox"><img src="images/wifi_solo_a_naranja.png" alt="" />
+							</div>
+
+							<h2>Connect and Play</h2>
+
+							<p class="msgnewssid"></p>
+
+							<form action="javascript:void(0)">
+								<fieldset class="buttons">
+									<a href="#" class="cancel left">Cancel</a>
+									<a href="javascript:void(0)" id="confirmb" onclick="set_wcli();" class="right">Finish</a>
+								</fieldset>
+							</form>
+
+						</div>
+
+						<!--  Set WifiMode Success -->
+						<div id="setwifiwizzardsuccess2" class="displayNone">
+
+							<h2 class="successMsg">Congratulations!</h2>
+
+							<p class="msgnewssid"></p>
+
+							<form action="javascript:void(0)">
+								<fieldset class="buttons">
+									<a href="javascript:void(0)" id="finishb2" onclick="window.location.reload();">Finish</a>
+								</fieldset>
+							</form>
+
+						</div>
+					</div>
+				</div>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                            NameDevice Div                           =  -->
+			<!--  =======================================================================  -->
+			<div id="setnamedevpage" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<h2>Gramofon name</h2>
+
+						<form action="javascript:void(0)">
+							<div class="error displayNone">
+								<!-- Reserved for Errors -->
+							</div>
+							<fieldset>
+								<div class="inputCell">
+									<input type="text" id="gramonameid" name="gramoname" />
+								</div>
+							</fieldset>
+
+							<fieldset class="buttons">
+								<a href="javascript:void(0)" class="cancel left">Cancel</a>
+								<a href="javascript:void(0)" id="bttongramoname" onclick="set_gramoname();" class="right">Save &amp; Apply</a>
+							</fieldset>
+						</form>
+
+					</div>
+				</div>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+			<!--  =======================================================================  -->
+			<!--  =                             Advanced Div                            =  -->
+			<!--  =======================================================================  -->
+			<div id="setadvancedpage" class="wrap displayNone">
+				<div class="main content">
+					<div class="list-wrap">
+
+						<h4>Gramofon password</h4>
+						<p>
+							Changes the administrator password for accessing the Gramofon.
+						</p>
+
+						<form action="javascript:void(0)">
+							<fieldset>
+								<div class="inputCell">
+									<label for="adminpass">Gramofon Password</label>
+									<input type="text" id="adminpass"/>
+									<small id="setpasssuccessmsg" class="green displayNone">Your password has been changed!!!</small>
+									<small id="setpasserrormsg" class="red displayNone">Error: Password size must be between 1 and 32!!!</small>
+								</div>
+							</fieldset>
+
+							<fieldset class="buttons">
+								<a href="javascript:void(0)" id="bttonadminpass" onclick="set_adminpass();">Save &amp; Apply</a>
+							</fieldset>
+						</form>
+
+						<h4>Reboot Gramofon</h4>
+						<p>
+							If you press on Reboot Gramofon, you will be disconnected from this page and the Gramofon. You will need to reconnect.
+						</p>
+
+						<form action="javascript:void(0)">
+							<fieldset class="buttons">
+								<a href="javascript:void(0)" onclick="gramo_reboot();">Reboot Gramofon</a>
+							</fieldset>
+						</form>
+
+						<h4>Restore to factory defaults</h4>
+						<p>
+							If you press on Restore to Factory, you will lose all the personal settings
+							of your Gramofon, including changes to internet connection mode, WiFi
+							signal names or password. Your Fon membership will not be affected
+						</p>
+
+						<form action="javascript:void(0)">
+							<fieldset class="buttons">
+								<a href="javascript:void(0)" onclick="gramo_factoryreset();">Restore to factory</a>
+							</fieldset>
+						</form>
+
+						<h4>Current Firmware Version</h4>
+						<p id='fwversionfield'>
+							<!-- Reserved for firmware version -->
+						</p>
+
+					</div>
+				</div>
+			</div>
+			<!--  <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>  -->
+
+		</div>
+	</body>
+</html>

@@ -1,0 +1,36 @@
+#!/bin/sh
+
+dorestart=0
+
+is_bridge() {
+	[ -d /sys/class/net/${1}/bridge ] && return 0
+	return 1
+}
+
+check_interface() {
+	[ "$dorestart" -eq 1 ] && return
+	if [ "$1" == "$DEVICE" ]; then
+		dorestart=1
+	elif is_bridge $1 ; then
+		for i in /sys/class/net/${1}/brif/* ; do
+			if [ $(basename $i) == "$DEVICE" ]; then
+				dorestart=1
+				return
+			fi
+		done;
+	fi
+}
+
+[ "$ACTION" = ifup ] || exit 0
+
+config_load mDNSResponder
+config_list_foreach interfaces private check_interface
+config_list_foreach interfaces public check_interface
+config_list_foreach interfaces wan check_interface
+
+[ "$dorestart" -eq 1 ] && {
+	/etc/init.d/mDNSResponder enabled || exit 0
+	logger -t mdnsd "Restarting mDNSResponder due to $ACTION of $INTERFACE ($DEVICE)"
+	ubus call anet restart_mdns
+	#/etc/init.d/mDNSResponder restart
+}

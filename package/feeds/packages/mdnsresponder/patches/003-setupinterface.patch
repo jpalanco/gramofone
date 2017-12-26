@@ -1,0 +1,149 @@
+--- a/mDNSCore/mDNS.c
++++ b/mDNSCore/mDNS.c
+@@ -10055,6 +10055,7 @@ mDNSexport void mDNS_StartExit(mDNS *con
+ 	{
+ 	NetworkInterfaceInfo *intf;
+ 	AuthRecord *rr;
++	unsigned int ii;
+ 
+ 	mDNS_Lock(m);
+ 
+@@ -10151,6 +10152,14 @@ mDNSexport void mDNS_StartExit(mDNS *con
+ 	// If any deregistering records remain, send their deregistration announcements before we exit
+ 	if (m->mDNSPlatformStatus != mStatus_NoError) DiscardDeregistrations(m);
+ 
++	// Clear selected interfaces
++	LogInfo("MDNS_StartExit: clearing selected interfaces");
++	for(ii = 0; ii < MAX_IFACES; ii++) 
++	{
++		free(m->interfaces[ii]);
++	}
++	free(m->interfaces);
++
+ 	mDNS_Unlock(m);
+ 
+ 	LogInfo("mDNS_StartExit: done");
+--- a/mDNSCore/mDNSEmbeddedAPI.h
++++ b/mDNSCore/mDNSEmbeddedAPI.h
+@@ -1069,6 +1069,8 @@ Fixes to avoid code generation warning/e
+ #pragma mark - DNS Resource Record class and type constants
+ #endif
+ 
++# define MAX_IFACES 15
++
+ typedef enum							// From RFC 1035
+ 	{
+ 	kDNSClass_IN               = 1,		// Internet
+@@ -2697,6 +2699,7 @@ struct mDNS_struct
+ 	ServiceRecordSet  SPSRecords;
+ 	mDNSQuestionCallback *SPSBrowseCallback;    // So the platform layer can do something useful with SPS browse results
+ 	int               ProxyRecords;				// Total number of records we're holding as proxy
++	char **interfaces;							// List of selected interfaces
+ 	#define           MAX_PROXY_RECORDS 10000	/* DOS protection: 400 machines at 25 records each */
+ 
+ #if APPLE_OSX_mDNSResponder
+--- a/mDNSPosix/mDNSPosix.c
++++ b/mDNSPosix/mDNSPosix.c
+@@ -179,6 +179,8 @@ Revision 1.74  2006/01/05 21:45:27  ches
+ #include "mDNSUNP.h"
+ #include "GenLinkedList.h"
+ 
++#define MAX_IFACES 15
++
+ // ***************************************************************************
+ // Structures
+ 
+@@ -1013,8 +1015,9 @@ mDNSlocal int SetupInterfaceList(mDNS *c
+ 	if (err == 0)
+ 		{
+ 		struct ifi_info *i = intfList;
++		int j = 0;
+ 		while (i)
+-			{
++		{	
+ 			if (     ((i->ifi_addr->sa_family == AF_INET)
+ #if HAVE_IPV6
+ 					  || (i->ifi_addr->sa_family == AF_INET6)
+@@ -1028,9 +1031,32 @@ mDNSlocal int SetupInterfaceList(mDNS *c
+ 					}
+ 				else
+ 					{
+-					if (SetupOneInterface(m, i->ifi_addr, i->ifi_netmask, i->ifi_name, i->ifi_index) == 0)
+-						if (i->ifi_addr->sa_family == AF_INET)
+-							foundav4 = mDNStrue;
++						if(m->interfaces[j] != NULL)
++						{
++							while(m->interfaces[j] != NULL && j< MAX_IFACES)
++							{
++								if(!strcmp(m->interfaces[j], i->ifi_name))
++								{
++									debugf("SetupInterfaceList:: found interface %s on list of selected interfaces\n", i->ifi_name);
++									if (SetupOneInterface(m, i->ifi_addr, i->ifi_netmask, i->ifi_name, i->ifi_index) == 0)
++										if (i->ifi_addr->sa_family == AF_INET)
++											foundav4 = mDNStrue;
++								}
++								else
++								{
++									debugf("SetupInterfaceList:: NOT found interface %s on list of selected interfaces\n", i->ifi_name);
++								}   
++								j++;
++							}
++							j = 0;
++						}
++						else
++						{
++							debugf("SetupInterfaceList:: setup %s active interface\n", i->ifi_name);
++							if (SetupOneInterface(m, i->ifi_addr, i->ifi_netmask, i->ifi_name, i->ifi_index) == 0)
++								if (i->ifi_addr->sa_family == AF_INET)
++									foundav4 = mDNStrue;
++						}
+ 					}
+ 				}
+ 			i = i->ifi_next;
+--- a/mDNSPosix/Responder.c
++++ b/mDNSPosix/Responder.c
+@@ -346,6 +346,7 @@ static        int  gPortNumber       = k
+ static const char *gServiceFile      = "";
+ static   mDNSBool  gDaemon           = mDNSfalse;
+ static const char *gPIDFile          = kDefaultPIDFile;
++static char **interface				 = NULL;
+ 
+ static void ParseArguments(int argc, char **argv)
+     // Parses our command line arguments into the global variables 
+@@ -361,11 +362,14 @@ static void ParseArguments(int argc, cha
+     } else {
+         gProgramName += 1;
+     }
+-    
++   
+     // Parse command line options using getopt.
+-    
++   
++	int nifaces = 0; 
++	// using calloc to make sure it contains all 0
++	interface = (char **)calloc(MAX_IFACES, sizeof(char *));
+     do {
+-        ch = getopt(argc, argv, "v:rn:t:d:p:f:dP:bx");
++        ch = getopt(argc, argv, "v:rn:t:d:p:f:i:dP:bx");
+         if (ch != -1) {
+             switch (ch) {
+                 case 'v':
+@@ -410,6 +414,10 @@ static void ParseArguments(int argc, cha
+                 case 'P':
+                     gPIDFile = optarg;
+                     break;
++				case 'i':
++					interface[nifaces] = strdup(optarg);
++					nifaces++;
++					break;
+                 case 'x':
+                 	while (optind < argc)
+                 		{
+@@ -761,6 +769,7 @@ int main(int argc, char **argv)
+         }
+     }
+ 
++	mDNSStorage.interfaces = interface;
+     status = mDNS_Init(&mDNSStorage, &PlatformStorage,
+     	mDNS_Init_NoCache, mDNS_Init_ZeroCacheSize,
+     	mDNS_Init_AdvertiseLocalAddresses,

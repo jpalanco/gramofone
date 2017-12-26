@@ -1,0 +1,70 @@
+Index: u-boot-2006-04-06-1725/Makefile
+===================================================================
+--- u-boot-2006-04-06-1725.orig/Makefile	2013-06-03 15:18:58.400746482 +0800
++++ u-boot-2006-04-06-1725/Makefile	2013-06-03 15:19:16.297034156 +0800
+@@ -229,7 +229,7 @@
+ 
+ ifeq ($(COMPRESSED_UBOOT),1)
+ 
+-LZMA = $(BUILD_DIR)/util/lzma
++LZMA = $(TOPDIR)/../../../../staging_dir/host/bin/lzma
+ 
+ tuboot.bin:	System.map bootstrap.bin u-boot.lzimg	
+ 		@cat bootstrap.bin > $@
+@@ -2019,6 +2019,9 @@
+ 	@echo "#define BUILD_VERSION "\"$(BUILDVERSION)\" >>include/config.h
+ 	@echo "#define CONFIG_AR7240 1" >>include/config.h
+ 	@echo "#define CONFIG_WASP 1" >>include/config.h
++ifeq ($(COMPRESSED_UBOOT),1)
++	@echo "#define COMPRESSED_UBOOT $(COMPRESSED_UBOOT)" >>include/config.h
++endif
+ ifeq ($(BOOT_FROM_NAND),1)
+ 	@echo '#define CONFIG_ATH_NAND_BR	1' >>include/config.h
+ 	@echo '#define CONFIG_ATH_NAND_SUPPORT	1' >>include/config.h
+Index: u-boot-2006-04-06-1725/include/configs/db12x.h
+===================================================================
+--- u-boot-2006-04-06-1725.orig/include/configs/db12x.h	2013-06-03 15:19:04.640846794 +0800
++++ u-boot-2006-04-06-1725/include/configs/db12x.h	2013-06-03 15:19:16.297034156 +0800
+@@ -153,7 +153,7 @@
+ #		define ATH_F_LEN	$filesize
+ #		define ATH_F_ADDR	0x9f010000
+ #		define ATH_K_FILE	vmlinux_${bc}.lzma.uImage
+-#		define ATH_K_ADDR	0x9f300000
++#		define ATH_K_ADDR	0x9fDD0000
+ 		/*
+ 		 * For compressed uboot, environment sector is not used.
+ 		 * Hence the mtd partition indices get reduced by 1.
+@@ -164,7 +164,7 @@
+ 		 * Hence, doing a dummy split of the u-boot partition
+ 		 * to maintain the same minor no. as in the normal u-boot.
+ 		 */
+-#		define MTDPARTS_DEFAULT	"mtdparts=ath-nor0:32k(u-boot1),32k(u-boot2),3008k(rootfs),896k(uImage),64k(mib0),64k(ART)"
++#		define MTDPARTS_DEFAULT	"mtdparts=ath-nor0:32k(u-boot),32k(u-boot-env),14080k(rootfs),1408k(uImage),768k(mib0),64k(ART)"
+ #	else /* COMPRESSED_UBOOT */
+ #		define ATH_U_FILE	u-boot.bin
+ #		define ATH_F_FILE	${bc}-jffs2
+@@ -215,7 +215,7 @@
+ #define CONFIG_EXTRA_ENV_SETTINGS	\
+ 	"dir=\0" ATH_U_CMD ATH_F_CMD ATH_K_CMD ""
+ 
+-#define	CONFIG_BOOTARGS		"console=ttyS0,115200 root=" ATH_ROOT_DEV " rootfstype=jffs2 init=/sbin/init " MTDPARTS_DEFAULT
++#define	CONFIG_BOOTARGS		"console=ttyS0,115200 root=" ATH_ROOT_DEV " rootfstype=squashfs init=/sbin/init " MTDPARTS_DEFAULT
+ 
+ #undef CFG_PLL_FREQ
+ 
+@@ -318,13 +318,13 @@
+ #ifndef CONFIG_ATH_NAND_SUPPORT
+ #	define CFG_ENV_ADDR		0x9f040000
+ #	if (FLASH_SIZE == 16)
+-#		define CONFIG_BOOTCOMMAND "bootm 0x9f550000"
++#		define CONFIG_BOOTCOMMAND "bootm 0x9fDD0000"
+ #	else  /* FLASH_SIZE == 16 */
+ #		ifdef COMPRESSED_UBOOT
+ #			if (FLASH_SIZE == 4)
+ #				define CONFIG_BOOTCOMMAND "bootm 0x9f300000"
+ #			else  /* FLASH_SIZE == 4 */
+-#				define CONFIG_BOOTCOMMAND "bootm 0x9f680000"
++#				define CONFIG_BOOTCOMMAND "bootm 0x9f320000"
+ #			endif  /* FLASH_SIZE == 4 */
+ #		else /* COMPRESSED_UBOOT */
+ #			if defined(CONFIG_MI124) || defined(CONFIG_AP123)

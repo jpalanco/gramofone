@@ -1,0 +1,95 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2009-2011 OpenWrt.org
+
+START=61
+
+SERVICE_USE_PID=1
+PIDPATH=/var/run/
+INTERFACES=
+
+add_interface() {
+	# Wait up to 30 seconds for first interface specified to have an 
+	# IP address as mDNSResponder needs that at start
+	if [ -z "$INTERFACES" ]
+	then
+		TRIES=0
+		ifconfig $1
+		not_found=$?
+		ifconfig $1 | grep -q "inet addr"
+		while [ "$not_found" -ne 1 -a $? -ne 0 -a $TRIES -lt 30 ]; do
+		    sleep 1
+		    let TRIES=TRIES+1
+		    ifconfig $1 | grep -q "inet addr"
+		done
+	fi
+
+	if [ "$not_found" -ne 1 ]
+	then 
+	    INTERFACES="$INTERFACES -i $1"
+	else 
+	    # if there isn't any public interface up this script
+	    # returns 1 in the exit status making 
+	    # the binaries that call this script fails although
+	    # there is no error. So we force the exit value
+	    true
+	fi
+}
+
+interface_txt() {
+   echo $1 >> /etc/mDNSResponder_${2}.conf
+}
+
+create_conf() {
+   config_get $1 "name" >> /etc/mDNSResponder_${2}.conf
+   local type=$(config_get $1 "type")
+   local domain=$(config_get $1 "domain")
+   echo $type $domain >> /etc/mDNSResponder_${2}.conf
+   config_get $1 "port" >> /etc/mDNSResponder_${2}.conf
+   config_list_foreach $1 "txt" interface_txt $2
+   echo "" >> /etc/mDNSResponder_${2}.conf
+}
+
+start() {
+   restart
+}
+
+start_all() {
+	start_interface private
+	start_interface public
+	start_interface wan
+}
+
+start_interface() {
+	INTERFACES=
+	config_load mDNSResponder
+	rm /etc/mDNSResponder_${1}.conf 2> /dev/null
+	config_foreach create_conf ${1}-service $1
+	config_list_foreach interfaces $1 add_interface
+	if [ -n "$INTERFACES" ]
+	then 
+	    /usr/bin/mDNSResponder -v 2 -b $INTERFACES -f /etc/mDNSResponder_${1}.conf -P ${PIDPATH}mDNSResponder_${1}.pid
+	fi
+}
+
+stop() {
+	stop_interface private
+	stop_interface public
+	stop_interface wan
+}
+
+stop_interface() {
+	printf "%-50s" "Stopping mDNSResponder_${1}"
+	if [ -f ${PIDPATH}mDNSResponder_${1}.pid ]; then
+		PID=`cat ${PIDPATH}mDNSResponder_${1}.pid`
+		kill -TERM $PID
+		printf "%s\n" "Ok"
+		rm -f ${PIDPATH}mDNSResponder_${1}.pid
+	else
+		printf "%s\n" "pidfile not found"
+	fi
+}
+
+restart() {
+	stop
+	start_all
+}

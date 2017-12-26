@@ -1,0 +1,125 @@
+import os.path
+import sys
+import io
+import ConfigParser
+
+from ctypes import *
+from mopidy.utils import path
+
+libuceasy = CDLL("/lib/libuceasy.so")
+config_init = libuceasy.config_init
+config_deinit = libuceasy.config_deinit
+config_get_string = libuceasy.config_get_string
+config_get_string.restype = c_char_p
+
+known_params = [
+    'logging/console_format',
+    'logging/debug_format',
+    'logging/debug_file',
+    'logging/config_file',
+    'audio/mixer',
+    'audio/mixer_track',
+    'audio/output',
+    'audio/visualizer',
+	'audio/mute',
+	'audio/volume',
+    'proxy/scheme',
+    'proxy/hostname',
+    'proxy/port',
+    'proxy/username',
+    'proxy/password',
+    'local/media_dir',
+    'local/playlists_dir',
+    'local/tag_cache_file',
+    'local/scan_timeout',
+    'spotify/username',
+    'spotify/password',
+    'spotify/bitrate',
+    'spotify/timeout',
+    'spotify/cache_dir',
+    'stream/protocols',
+    'http/hostname',
+    'http/port',
+    'http/static_dir',
+    'mpd/hostname',
+    'mpd/port',
+    'mpd/password',
+    'mpd/max_connections',
+    'mpd/connection_timeout',
+    'mpris/desktop_file',
+    'scrobbler/username',
+    'scrobbler/password',
+    'wahwah/auth_token',
+    'wahwah/allow_unregistered',
+    'rpc/port',
+    'rpc/hostname',
+	'rpc/user',
+	'rpc/password',
+]
+
+frontends = [
+    'http/enabled',
+    'mpd/enabled',
+    'scrobbler/enabled',
+    'mpris/enabled',
+    'rpc/enabled',
+]
+
+backends = [
+    'local/enabled',
+    'spotify/enabled',
+    'stream/enabled',
+    'wahwah/enabled'
+]
+
+known_extensions = [
+    'spotify', 'scrobbler', 'mpd', 'mpris', 'local', 'stream', 'http', 'wahwah',
+    'rpc']
+
+mandatory_sections = ['loglevels']
+
+def convert_uci():
+    config = {}
+    def helper(confval):
+        section, key = confval.split('/')
+        value = config_get_string(section, key, None)
+        if value is not None:
+            config.setdefault(section, {})[key] = value
+
+    def plugins(confval):
+        section, key = confval.split('/')
+        value = config_get_string(section, key, None)
+        if value is not None:
+            config.setdefault(section, {})[key] = value
+        else:
+            config.setdefault(section, {})[key] = False
+
+    for param in known_params:
+        helper(param)
+    for frontend in frontends:
+        plugins(frontend)
+    for backend in backends:
+        plugins(backend)
+
+    return config
+
+def load_uci():
+    conf_file = path.expand_path(b'$XDG_CONFIG_DIR/mopidy/mopidy.conf')
+    config_init("mopidy")
+    config = convert_uci()
+    config_mopidy = ConfigParser.RawConfigParser()
+    for section, params in config.items():
+        for key, value in params.items():
+            if not config_mopidy.has_section(section):
+                config_mopidy.add_section(section)
+            config_mopidy.set(section, key, value)
+
+    for section in mandatory_sections:
+        if not config_mopidy.has_section(section):
+            config_mopidy.add_section(section)
+    with open(conf_file, 'wb') as filehandle:
+        config_mopidy.write(filehandle)
+    config_deinit()
+
+if __name__ == "__main__":
+    load_uci()
